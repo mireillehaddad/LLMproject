@@ -164,7 +164,8 @@ These permissions allow:
 
 # 8. Deploy the Application
 
-Deploy directly from source:
+Deploy directly from source: 
+Remark : With --source ., Google Cloud automatically does the Docker build  using Cloud Build
 
 ```bash
 gcloud run deploy undp-chatbot \
