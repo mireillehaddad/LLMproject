@@ -22,11 +22,11 @@ If using `uv.lock`:
 uv sync
 ```
 
-If dependencies need to be installed manually:
+<!-- If dependencies need to be installed manually:
 
 ```bash
 uv pip install requests google-cloud-storage python-dotenv pypdf numpy streamlit google-genai --link-mode=copy
-```
+``` -->
 
 ### 4. Configure Google Cloud
 
