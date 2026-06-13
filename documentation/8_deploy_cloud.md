@@ -263,3 +263,8 @@ Vertex AI Gemini
         ▼
 Public Streamlit Application
 ```
+
+
+check the AI chatbot at
+
+ https://undp-chatbot-1097805338474.northamerica-northeast1.run.app/
