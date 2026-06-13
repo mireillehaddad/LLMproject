@@ -194,12 +194,6 @@ Revision: undp-chatbot-00001-qpx
 Traffic: 100%
 ```
 
-Public URL:
-
-```text
-https://undp-chatbot-1097805338474.northamerica-northeast1.run.app
-```
-
 ---
 
 # 10. Test the Application
@@ -244,6 +238,6 @@ Public Streamlit Application
 ```
 
 
-check the AI chatbot at
+check the UNDP AI chatbot at
 
  https://undp-chatbot-1097805338474.northamerica-northeast1.run.app/
