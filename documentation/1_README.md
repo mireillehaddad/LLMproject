@@ -76,7 +76,7 @@ https://undp-chatbot-1097805338474.northamerica-northeast1.run.app/
 ---
 
 ## Features
-
+```
 * Automatic ingestion of UNDP project documents
 * PDF processing and chunking
 * Semantic search using embeddings
@@ -84,16 +84,15 @@ https://undp-chatbot-1097805338474.northamerica-northeast1.run.app/
 * Gemini-powered question answering
 * Streamlit user interface
 * Deployment on Google Cloud Run
-
+```
 ---
 
 ## Example Questions
-
+```
 * What projects are currently active in Lebanon?
 * Which UNDP projects focus on climate change?
 * What is the budget of a specific project?
 * What outcomes are expected from a project?
 * Which stakeholders are involved in a project?
 
-```
 ```
