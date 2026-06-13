@@ -1,14 +1,27 @@
 # LLMproject
 
 
-Problem:
-UNDP publishes project documents in PDF format on the website https://open.undp.org/.
-Finding information across hundreds of pages is difficult.
+Problem
 
+UNDP publishes project documents in PDF format on the Open UNDP website: https://open.undp.org/.
 
-This project builds a RAG chatbot that automatically ingests UNDP documents from API (https://api.open.undp.org/api_documentation/api#!/default/individual_project_data),creates embeddings, retrieves relevant content, and answers questions using Gemini.
+Finding specific information across many long PDF documents is difficult and time-consuming.
 
+Project Description
 
+This project builds a RAG chatbot that allows users to ask questions about UNDP project documents.
+
+The system:
+
+Ingests UNDP project documents using the Open UNDP API
+Downloads and processes the related PDF documents
+Splits the documents into chunks
+Creates embeddings for semantic search
+Retrieves the most relevant document chunks for each question
+Uses Gemini to generate answers based on the retrieved context
+Provides a Streamlit web interface deployed on Cloud Run:
+
+https://undp-chatbot-1097805338474.northamerica-northeast1.run.app/
 
 
 ## 1. Create the Project Folder
