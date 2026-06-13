@@ -138,7 +138,6 @@ data
 
 # 7. Grant Required IAM Permissions
 
-During deployment, Cloud Build failed because the default Compute Engine service account did not have sufficient permissions.
 
 Grant Cloud Build permissions:
 
@@ -220,28 +219,7 @@ Verify that:
 
 ---
 
-# 11. Redeploy After Code Changes
 
-After updating the code:
-
-```bash
-git add .
-git commit -m "Update chatbot"
-git push
-```
-
-Redeploy:
-
-```bash
-gcloud run deploy undp-chatbot \
-  --source . \
-  --region northamerica-northeast1 \
-  --allow-unauthenticated
-```
-
-Cloud Run creates a new revision and automatically routes traffic to the latest version.
-
----
 
 # Deployment Architecture
 
