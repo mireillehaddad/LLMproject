@@ -3368,3 +3368,637 @@ Streamlit Cloud Run Chatbot
 ```
 
 This architecture is suitable for a personal production deployment and can later be migrated to Cloud Composer (Apache Airflow) if enterprise-scale orchestration is required.
+
+
+
+
+
+Future Improvements
+
+Potential production enhancements:
+
+• Weekly schedule instead of daily
+• Email alerts on failures
+• Monitoring dashboards
+• CI/CD with Cloud Build
+• Vector database integration
+• Cloud Composer migration for enterprise orchestration
+
+
+# step 16
+
+# Future Improvement: CI/CD with Cloud Build
+
+## Overview
+
+The current deployment process for the UNDP pipeline is manual. After making code changes, Docker images must be rebuilt, pushed to Artifact Registry, and Cloud Run Jobs must be updated.
+
+A future improvement is to implement Continuous Integration and Continuous Deployment (CI/CD) using Google Cloud Build.
+
+This would automate the deployment process whenever code is pushed to GitHub.
+
+---
+
+# Current Deployment Process
+
+Today, deployment requires manually executing the following steps:
+
+```text
+Code Change
+    ↓
+docker build
+    ↓
+docker push
+    ↓
+gcloud run jobs deploy
+```
+
+Every update to the pipeline requires repeating these commands.
+
+Files that commonly trigger a redeployment include:
+
+```text
+src/ingest/run_ingest.py
+src/chunk/run_chunk.py
+src/embed/run_embed.py
+```
+
+Typical manual deployment commands:
+
+```powershell
+docker build ...
+docker push ...
+gcloud run jobs deploy ...
+```
+
+---
+
+# CI/CD with Cloud Build
+
+With Cloud Build, deployments become fully automated.
+
+```text
+Git Push
+    ↓
+Cloud Build Trigger
+    ↓
+Build Docker Images
+    ↓
+Push to Artifact Registry
+    ↓
+Update Cloud Run Jobs
+```
+
+No manual deployment steps are required.
+
+---
+
+# Recommended Future Architecture
+
+```text
+GitHub
+    ↓
+Cloud Build Trigger
+    ↓
+Artifact Registry
+    ↓
+Cloud Run Jobs
+    ↓
+Cloud Workflow
+    ↓
+Cloud Scheduler
+```
+
+This architecture enables automatic deployment whenever code is committed to the repository.
+
+---
+
+# Cloud Build Configuration
+
+Create:
+
+```text
+cloudbuild.yaml
+```
+
+Example configuration for the ingestion job:
+
+```yaml
+steps:
+
+- name: 'gcr.io/cloud-builders/docker'
+  args:
+    [
+      'build',
+      '-f',
+      'docker/Dockerfile.ingest',
+      '-t',
+      'northamerica-northeast1-docker.pkg.dev/undp-project-documents/undp-pipeline/undp-ingest:latest',
+      '.'
+    ]
+
+- name: 'gcr.io/cloud-builders/docker'
+  args:
+    [
+      'push',
+      'northamerica-northeast1-docker.pkg.dev/undp-project-documents/undp-pipeline/undp-ingest:latest'
+    ]
+
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  entrypoint: gcloud
+  args:
+    [
+      'run',
+      'jobs',
+      'update',
+      'undp-ingest-job',
+      '--image',
+      'northamerica-northeast1-docker.pkg.dev/undp-project-documents/undp-pipeline/undp-ingest:latest',
+      '--region',
+      'northamerica-northeast1'
+    ]
+```
+
+The same approach can be extended to:
+
+```text
+undp-chunk-job
+undp-embed-job
+```
+
+so that all pipeline jobs are automatically updated after a successful build.
+
+---
+
+# Benefits
+
+Implementing CI/CD provides:
+
+```text
+✓ Automated deployments
+
+✓ Reduced manual operations
+
+✓ Faster release cycles
+
+✓ Consistent deployment process
+
+✓ Better production reliability
+
+✓ Improved DevOps practices
+```
+
+---
+
+# Current Recommendation
+
+For the current UNDP project, manual deployment is sufficient.
+
+The existing production architecture is:
+
+```text
+Cloud Scheduler
+    ↓
+Cloud Workflow
+    ↓
+Cloud Run Jobs
+    ↓
+Google Cloud Storage
+    ↓
+Streamlit Chatbot
+```
+
+CI/CD with Cloud Build is recommended as a future enhancement after the core RAG pipeline and chatbot functionality have been completed and stabilized.
+
+---
+
+# Additional Future Improvements
+
+Potential enhancements after CI/CD:
+
+```text
+• Retrieval evaluation framework
+
+• Prompt evaluation framework
+
+• Metadata-based retrieval filters
+
+• Vector database integration
+  (Vertex AI Vector Search, Pinecone, Qdrant)
+
+• User authentication
+
+• Monitoring dashboards
+
+• Email or Slack alerts
+
+• Enterprise orchestration with Cloud Composer
+```
+# step 18: CI/CD
+To do :
+# Add CI/CD with Cloud Build
+
+## Objective
+
+The UNDP pipeline is currently deployed manually.
+
+Current process:
+
+```text
+Code Change
+    ↓
+docker build
+    ↓
+docker push
+    ↓
+gcloud run jobs deploy
+```
+
+The goal of this step is to automate deployment using Google Cloud Build.
+
+After implementation:
+
+```text
+Git Push
+    ↓
+Cloud Build Trigger
+    ↓
+Build Docker Images
+    ↓
+Push Images to Artifact Registry
+    ↓
+Update Cloud Run Jobs
+    ↓
+Pipeline Ready
+```
+
+No manual deployment will be required.
+
+---
+
+# Current Architecture
+
+```text
+GitHub
+      ↓
+Manual Build
+      ↓
+Artifact Registry
+      ↓
+Cloud Run Jobs
+      ↓
+Cloud Workflow
+      ↓
+Cloud Scheduler
+```
+
+---
+
+# Target Architecture
+
+```text
+GitHub
+      ↓
+Cloud Build Trigger
+      ↓
+Cloud Build
+      ↓
+Artifact Registry
+      ↓
+Cloud Run Jobs
+      ↓
+Cloud Workflow
+      ↓
+Cloud Scheduler
+```
+
+---
+
+# Step 1 – Enable Cloud Build API
+
+Enable Cloud Build:
+
+```powershell
+gcloud services enable cloudbuild.googleapis.com
+```
+
+Verify:
+
+```powershell
+gcloud services list --enabled | findstr cloudbuild
+```
+
+Expected:
+
+```text
+cloudbuild.googleapis.com
+```
+
+---
+
+# Step 2 – Create Cloud Build Configuration
+
+Create:
+
+```text
+cloudbuild.yaml
+```
+
+Project root:
+
+```text
+undp_pipeline_prod/
+│
+├── cloudbuild.yaml
+├── docker/
+├── src/
+├── workflows/
+└── ...
+```
+
+---
+
+# Step 3 – Configure Ingest Build
+
+Add:
+
+```yaml
+steps:
+
+- name: 'gcr.io/cloud-builders/docker'
+  args:
+    [
+      'build',
+      '-f',
+      'docker/Dockerfile.ingest',
+      '-t',
+      'northamerica-northeast1-docker.pkg.dev/undp-project-documents/undp-pipeline/undp-ingest:latest',
+      '.'
+    ]
+
+- name: 'gcr.io/cloud-builders/docker'
+  args:
+    [
+      'push',
+      'northamerica-northeast1-docker.pkg.dev/undp-project-documents/undp-pipeline/undp-ingest:latest'
+    ]
+
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  entrypoint: gcloud
+  args:
+    [
+      'run',
+      'jobs',
+      'update',
+      'undp-ingest-job',
+      '--image',
+      'northamerica-northeast1-docker.pkg.dev/undp-project-documents/undp-pipeline/undp-ingest:latest',
+      '--region',
+      'northamerica-northeast1'
+    ]
+```
+
+---
+
+# Step 4 – Add Chunk Deployment
+
+Add:
+
+```yaml
+- name: 'gcr.io/cloud-builders/docker'
+  args:
+    [
+      'build',
+      '-f',
+      'docker/Dockerfile.chunk',
+      '-t',
+      'northamerica-northeast1-docker.pkg.dev/undp-project-documents/undp-pipeline/undp-chunk:latest',
+      '.'
+    ]
+
+- name: 'gcr.io/cloud-builders/docker'
+  args:
+    [
+      'push',
+      'northamerica-northeast1-docker.pkg.dev/undp-project-documents/undp-pipeline/undp-chunk:latest'
+    ]
+
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  entrypoint: gcloud
+  args:
+    [
+      'run',
+      'jobs',
+      'update',
+      'undp-chunk-job',
+      '--image',
+      'northamerica-northeast1-docker.pkg.dev/undp-project-documents/undp-pipeline/undp-chunk:latest',
+      '--region',
+      'northamerica-northeast1'
+    ]
+```
+
+---
+
+# Step 5 – Add Embed Deployment
+
+Add:
+
+```yaml
+- name: 'gcr.io/cloud-builders/docker'
+  args:
+    [
+      'build',
+      '-f',
+      'docker/Dockerfile.embed',
+      '-t',
+      'northamerica-northeast1-docker.pkg.dev/undp-project-documents/undp-pipeline/undp-embed:latest',
+      '.'
+    ]
+
+- name: 'gcr.io/cloud-builders/docker'
+  args:
+    [
+      'push',
+      'northamerica-northeast1-docker.pkg.dev/undp-project-documents/undp-pipeline/undp-embed:latest'
+    ]
+
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  entrypoint: gcloud
+  args:
+    [
+      'run',
+      'jobs',
+      'update',
+      'undp-embed-job',
+      '--image',
+      'northamerica-northeast1-docker.pkg.dev/undp-project-documents/undp-pipeline/undp-embed:latest',
+      '--region',
+      'northamerica-northeast1'
+    ]
+```
+
+---
+
+# Step 6 – Test Cloud Build Manually
+
+Run:
+
+```powershell
+gcloud builds submit
+```
+
+Expected:
+
+```text
+Build completed successfully
+```
+
+Verify:
+
+```text
+Artifact Registry updated
+Cloud Run Jobs updated
+```
+
+---
+
+# Step 7 – Connect GitHub Repository
+
+Navigate:
+
+```text
+Cloud Build
+    ↓
+Triggers
+```
+
+Create Trigger:
+
+```text
+Name:
+undp-main-trigger
+```
+
+Repository:
+
+```text
+GitHub
+```
+
+Branch:
+
+```text
+main
+```
+
+Configuration:
+
+```text
+cloudbuild.yaml
+```
+
+---
+
+# Step 8 – Test Automatic Deployment
+
+Make a small change:
+
+```text
+README.md
+```
+
+Commit:
+
+```powershell
+git add .
+git commit -m "Test Cloud Build trigger"
+git push
+```
+
+Expected:
+
+```text
+Git Push
+    ↓
+Cloud Build Trigger
+    ↓
+Build Success
+    ↓
+Artifact Registry Updated
+    ↓
+Cloud Run Jobs Updated
+```
+
+---
+
+# Monitoring
+
+View builds:
+
+```text
+Cloud Build
+    ↓
+History
+```
+
+View logs:
+
+```text
+Cloud Build
+    ↓
+Build History
+    ↓
+Build Logs
+```
+
+---
+
+# Deliverables
+
+After completing this step:
+
+```text
+✓ Cloud Build enabled
+
+✓ cloudbuild.yaml created
+
+✓ GitHub trigger configured
+
+✓ Automatic Docker builds
+
+✓ Automatic Artifact Registry updates
+
+✓ Automatic Cloud Run Job updates
+
+✓ End-to-end CI/CD pipeline
+```
+
+---
+
+# Final Production Architecture
+
+```text
+GitHub
+      ↓
+Cloud Build Trigger
+      ↓
+Cloud Build
+      ↓
+Artifact Registry
+      ↓
+Cloud Run Jobs
+      ↓
+Cloud Workflow
+      ↓
+Cloud Scheduler
+      ↓
+Google Cloud Storage
+      ↓
+Streamlit Chatbot
+```
+
+This completes the DevOps automation layer for the UNDP production pipeline.
+
+
+
