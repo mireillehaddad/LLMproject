@@ -1190,4 +1190,189 @@ Gemini RAG Chatbot
 ```
 
 Once chunk files are successfully created in `processed/`, continue to **Step 8 — Add the Embedding Job**.
+# Step 8 — Add the Embedding Job
+
+This step generates vector embeddings from the PDF chunks stored in Google Cloud Storage and saves the embeddings back to GCS for retrieval during question answering.
+
+---
+
+# Purpose
+
+The chunking step converted PDF pages into text chunks and stored them in:
+
+```text
+processed/
+```
+
+The embedding step converts each chunk into a numeric vector representation using:
+
+```text
+gemini-embedding-001
+```
+
+These vectors allow semantic search to find relevant information even when the user's question does not exactly match the document wording.
+
+---
+
+# Input
+
+The embedding job reads JSONL files from:
+
+```text
+gs://undp-project-documents-llm-prod/processed/
+```
+
+Each record looks similar to:
+
+```json
+{
+  "source_pdf_blob": "...",
+  "page_number": 12,
+  "chunk_index": 3,
+  "text": "UNDP supports digital transformation..."
+}
+```
+
+---
+
+# Output
+
+The job creates embedding files under:
+
+```text
+gs://undp-project-documents-llm-prod/embeddings/
+```
+
+Example:
+
+```text
+embeddings/year=2026/country=Lebanon/project_id=01003798/3406425_Project_Document_ProDoc_.pdf.jsonl
+```
+
+Each record contains:
+
+```json
+{
+  "source_pdf_blob": "...",
+  "page_number": 12,
+  "chunk_index": 3,
+  "text": "...",
+  "embedding": [...],
+  "embedding_model": "gemini-embedding-001",
+  "embedded_at": "2026-06-13T23:15:00Z"
+}
+```
+
+---
+
+# File Location
+
+Create:
+
+```text
+src/embed/run_embed.py
+```
+
+---
+
+# How the Job Works
+
+| Step | Description                          |
+| ---- | ------------------------------------ |
+| 1    | Read chunk files from GCS            |
+| 2    | Parse JSONL records                  |
+| 3    | Send chunk text to Gemini Embeddings |
+| 4    | Receive embedding vectors            |
+| 5    | Attach vectors to metadata           |
+| 6    | Save embedding records to GCS        |
+| 7    | Repeat for all chunk files           |
+
+---
+
+# Run Locally
+
+From the project root:
+
+```powershell
+python -m src.embed.run_embed
+```
+
+---
+
+# Expected Output
+
+```text
+Starting embedding job...
+Gemini client created
+
+Found chunk files: 12
+
+Embedding: gs://undp-project-documents-llm-prod/processed/...
+Created embeddings: 344
+
+Embedding: gs://undp-project-documents-llm-prod/processed/...
+Created embeddings: 17
+
+Embedding: gs://undp-project-documents-llm-prod/processed/...
+Created embeddings: 96
+
+Embedding complete.
+Total chunk files processed: 12
+Total embeddings created: 1162
+```
+
+---
+
+# Verify Embeddings
+
+List generated embedding files:
+
+```powershell
+gcloud storage ls gs://undp-project-documents-llm-prod/embeddings/ --recursive
+```
+
+You should see files similar to:
+
+```text
+gs://undp-project-documents-llm-prod/embeddings/year=2026/country=Lebanon/project_id=01003798/3406425_Project_Document_ProDoc_.pdf.jsonl
+```
+
+---
+
+# Why Embeddings Are Needed
+
+A user may ask:
+
+```text
+What digital initiatives are supported in Lebanon?
+```
+
+The documents may contain:
+
+```text
+digital transformation
+e-governance
+data platforms
+digital public services
+```
+
+Embeddings place related concepts close together in vector space, allowing retrieval even when the wording differs.
+
+---
+
+# Next Step
+
+After embeddings are generated, the next step is:
+
+```text
+Step 9 — Build the Retrieval and Question Answering Pipeline
+```
+
+The retrieval pipeline will:
+
+1. Embed the user's question.
+2. Compare the question embedding with document embeddings.
+3. Retrieve the most relevant chunks.
+4. Send the retrieved context to Gemini.
+5. Generate a grounded answer with citations.
 
