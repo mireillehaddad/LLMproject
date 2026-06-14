@@ -2249,109 +2249,6 @@ Service URL: https://undp-chatbot-1097805338474.northamerica-northeast1.run.app
 (undp_pipeline_prod) PS C:\Users\mirei\OneDrive\Desktop\LLMproject\undp_pipeline_prod> 
 
 
----
-
-# Troubleshooting
-
-## Docker Cannot Find Streamlit
-
-Error:
-
-```text
-exec: "streamlit": executable file not found in $PATH
-```
-
-Fix:
-
-Use this command in `docker/Dockerfile.chatbot`:
-
-```dockerfile
-CMD ["uv", "run", "streamlit", "run", "src/chatbot/app.py", "--server.port=8080", "--server.address=0.0.0.0"]
-```
-
-Then rebuild:
-
-```powershell
-docker build -f docker/Dockerfile.chatbot -t undp-chatbot .
-```
-
----
-
-## Docker Cannot Find Google Credentials
-
-Error:
-
-```text
-google.auth.exceptions.DefaultCredentialsError
-```
-
-Fix:
-
-Run the container with ADC mounted:
-
-```powershell
-docker run -p 8080:8080 `
-  -e GOOGLE_APPLICATION_CREDENTIALS=/gcloud/application_default_credentials.json `
-  -v "$env:APPDATA\gcloud:/gcloud" `
-  undp-chatbot
-```
-
----
-
-## Cloud Build Permission Error
-
-Run:
-
-```powershell
-gcloud projects add-iam-policy-binding undp-project-documents ^
-  --member="serviceAccount:1097805338474-compute@developer.gserviceaccount.com" ^
-  --role="roles/cloudbuild.builds.builder"
-```
-
----
-
-## Vertex AI Permission Error
-
-Run:
-
-```powershell
-gcloud projects add-iam-policy-binding undp-project-documents ^
-  --member="serviceAccount:1097805338474-compute@developer.gserviceaccount.com" ^
-  --role="roles/aiplatform.user"
-```
-
----
-
-## Storage Permission Error
-
-Run:
-
-```powershell
-gcloud projects add-iam-policy-binding undp-project-documents ^
-  --member="serviceAccount:1097805338474-compute@developer.gserviceaccount.com" ^
-  --role="roles/storage.objectViewer"
-```
-
----
-
-## Import Errors
-
-Verify Dockerfile contains:
-
-```dockerfile
-ENV PYTHONPATH=/app
-```
-
-and imports use:
-
-```python
-from src.chatbot.qa import ask
-from src.retrieval.retriever import retrieve
-from src.common.settings import settings
-```
-
----
-
 # Deliverables
 
 After completing this step:
@@ -2373,5 +2270,556 @@ Proceed to:
 ```text
 Step 12 — Build the Cloud Composer Pipeline
 ```
+# Step 12 — Build the Cloud Composer Pipeline
+
+In this step, Cloud Composer will only orchestrate the pipeline.
+
+The real work will run inside Cloud Run Jobs:
+
+```text
+Cloud Composer DAG
+    ↓
+undp-ingest-job
+    ↓
+undp-chunk-job
+    ↓
+undp-embed-job
+```
+
+Cloud Run Jobs are good for tasks that run, finish, and exit. Cloud Composer is managed Apache Airflow and is used to schedule and monitor the order of those jobs.
+
+---
+
+## 12.1 Verify your Dockerfiles
+
+You should already have these files:
+
+```text
+docker/Dockerfile.ingest
+docker/Dockerfile.chunk
+docker/Dockerfile.embed
+```
+
+Each Dockerfile should run one pipeline step.
+
+### `docker/Dockerfile.ingest`
+
+```dockerfile
+FROM python:3.12-slim
+
+WORKDIR /app
+
+COPY . .
+
+RUN pip install uv
+RUN uv sync
+
+ENV PYTHONPATH=/app
+
+CMD ["uv", "run", "python", "-m", "src.ingest.run_ingest"]
+```
+
+### `docker/Dockerfile.chunk`
+
+```dockerfile
+FROM python:3.12-slim
+
+WORKDIR /app
+
+COPY . .
+
+RUN pip install uv
+RUN uv sync
+
+ENV PYTHONPATH=/app
+
+CMD ["uv", "run", "python", "-m", "src.chunk.run_chunk"]
+```
+
+### `docker/Dockerfile.embed`
+
+```dockerfile
+FROM python:3.12-slim
+
+WORKDIR /app
+
+COPY . .
+
+RUN pip install uv
+RUN uv sync
+
+ENV PYTHONPATH=/app
+
+CMD ["uv", "run", "python", "-m", "src.embed.run_embed"]
+```
+
+---
+
+## 12.2 Verify your project structure
+
+Your project should look like this:
+
+```text
+undp_pipeline_prod/
+│
+├── docker/
+│   ├── Dockerfile.ingest
+│   ├── Dockerfile.chunk
+│   └── Dockerfile.embed
+│
+├── src/
+│   ├── ingest/
+│   │   └── run_ingest.py
+│   ├── chunk/
+│   │   └── run_chunk.py
+│   └── embed/
+│       └── run_embed.py
+│
+├── dags/
+│   └── undp_pipeline_dag.py
+│
+├── pyproject.toml
+├── uv.lock
+└── README.md
+```
+
+If the `dags` folder does not exist yet, create it:
+
+```powershell
+mkdir dags
+```
+
+---
+
+## 12.3 Set your GCP project
+
+Run this from your project root:
+
+```powershell
+gcloud config set project undp-project-documents
+```
+
+Verify:
+
+```powershell
+gcloud config get-value project
+```
+
+Expected output:
+
+```text
+undp-project-documents
+```
+
+---
+
+## 12.4 Set your region variable
+
+In PowerShell:
+
+```powershell
+$REGION="northamerica-northeast1"
+$PROJECT_ID="undp-project-documents"
+$REPO="undp-pipeline"
+```
+
+These variables make the commands shorter.
+
+---
+
+## 12.5 Enable required GCP services
+
+Run:
+
+```powershell
+gcloud services enable artifactregistry.googleapis.com
+gcloud services enable run.googleapis.com
+gcloud services enable cloudbuild.googleapis.com
+gcloud services enable composer.googleapis.com
+```
+
+These services are needed for:
+
+```text
+Artifact Registry → stores Docker images
+Cloud Build       → builds Docker images
+Cloud Run Jobs    → runs ingestion/chunking/embedding jobs
+Cloud Composer    → orchestrates the pipeline
+```
+
+---
+
+## 12.6 Create Artifact Registry repository
+
+Artifact Registry will store your Docker images.
+
+Run:
+
+```powershell
+gcloud artifacts repositories create undp-pipeline `
+  --repository-format=docker `
+  --location=northamerica-northeast1
+```
+
+If it says the repository already exists, that is okay. Continue.
+
+---
+
+## 12.7 Build and push the ingestion image
+
+Run:
+
+```powershell
+gcloud builds submit `
+  --tag northamerica-northeast1-docker.pkg.dev/undp-project-documents/undp-pipeline/undp-ingest:latest `
+  -f docker/Dockerfile.ingest .
+```
+
+This creates the Docker image for the ingestion job and pushes it to Artifact Registry.
+
+---
+
+## 12.8 Build and push the chunking image
+
+Run:
+
+```powershell
+gcloud builds submit `
+  --tag northamerica-northeast1-docker.pkg.dev/undp-project-documents/undp-pipeline/undp-chunk:latest `
+  -f docker/Dockerfile.chunk .
+```
+
+---
+
+## 12.9 Build and push the embedding image
+
+Run:
+
+```powershell
+gcloud builds submit `
+  --tag northamerica-northeast1-docker.pkg.dev/undp-project-documents/undp-pipeline/undp-embed:latest `
+  -f docker/Dockerfile.embed .
+```
+
+---
+
+## 12.10 Create the Cloud Run ingestion job
+
+Run:
+
+```powershell
+gcloud run jobs deploy undp-ingest-job `
+  --image northamerica-northeast1-docker.pkg.dev/undp-project-documents/undp-pipeline/undp-ingest:latest `
+  --region northamerica-northeast1
+```
+
+---
+
+## 12.11 Create the Cloud Run chunking job
+
+Run:
+
+```powershell
+gcloud run jobs deploy undp-chunk-job `
+  --image northamerica-northeast1-docker.pkg.dev/undp-project-documents/undp-pipeline/undp-chunk:latest `
+  --region northamerica-northeast1
+```
+
+---
+
+## 12.12 Create the Cloud Run embedding job
+
+Run:
+
+```powershell
+gcloud run jobs deploy undp-embed-job `
+  --image northamerica-northeast1-docker.pkg.dev/undp-project-documents/undp-pipeline/undp-embed:latest `
+  --region northamerica-northeast1
+```
+
+---
+
+## 12.13 Test the jobs manually
+
+Before using Composer, test each Cloud Run Job manually.
+
+### Test ingestion
+
+```powershell
+gcloud run jobs execute undp-ingest-job `
+  --region northamerica-northeast1 `
+  --wait
+```
+
+### Test chunking
+
+```powershell
+gcloud run jobs execute undp-chunk-job `
+  --region northamerica-northeast1 `
+  --wait
+```
+
+### Test embedding
+
+```powershell
+gcloud run jobs execute undp-embed-job `
+  --region northamerica-northeast1 `
+  --wait
+```
+
+If all three finish successfully, Composer can orchestrate them.
+
+---
+
+## 12.14 Create the Cloud Composer environment
+
+Run:
+
+```powershell
+gcloud composer environments create undp-composer `
+  --location northamerica-northeast1
+```
+
+This can take time because Google Cloud is creating a managed Airflow environment.
+
+---
+
+## 12.15 Create the Airflow DAG file
+
+Create this file:
+
+```text
+dags/undp_pipeline_dag.py
+```
+
+Add this code:
+
+```python
+from __future__ import annotations
+
+from datetime import datetime
+
+from airflow import DAG
+from airflow.providers.google.cloud.operators.cloud_run import CloudRunExecuteJobOperator
+from airflow.operators.empty import EmptyOperator
 
 
+PROJECT_ID = "undp-project-documents"
+REGION = "northamerica-northeast1"
+
+
+with DAG(
+    dag_id="undp_pipeline_dag",
+    description="Orchestrates UNDP ingestion, chunking, and embedding Cloud Run Jobs",
+    start_date=datetime(2026, 1, 1),
+    schedule_interval=None,
+    catchup=False,
+    tags=["undp", "rag", "cloud-run"],
+) as dag:
+
+    start = EmptyOperator(task_id="start")
+
+    run_ingest_job = CloudRunExecuteJobOperator(
+        task_id="run_undp_ingest_job",
+        project_id=PROJECT_ID,
+        region=REGION,
+        job_name="undp-ingest-job",
+    )
+
+    run_chunk_job = CloudRunExecuteJobOperator(
+        task_id="run_undp_chunk_job",
+        project_id=PROJECT_ID,
+        region=REGION,
+        job_name="undp-chunk-job",
+    )
+
+    run_embed_job = CloudRunExecuteJobOperator(
+        task_id="run_undp_embed_job",
+        project_id=PROJECT_ID,
+        region=REGION,
+        job_name="undp-embed-job",
+    )
+
+    end = EmptyOperator(task_id="end")
+
+    start >> run_ingest_job >> run_chunk_job >> run_embed_job >> end
+```
+
+This DAG means:
+
+```text
+start
+  → run ingestion job
+  → run chunking job
+  → run embedding job
+  → end
+```
+
+The next job will not start unless the previous job succeeds.
+
+---
+
+## 12.16 Upload the DAG to Composer
+
+Run:
+
+```powershell
+gcloud composer environments storage dags import `
+  --environment undp-composer `
+  --location northamerica-northeast1 `
+  --source dags/undp_pipeline_dag.py
+```
+
+---
+
+## 12.17 Open Airflow UI
+
+Run:
+
+```powershell
+gcloud composer environments describe undp-composer `
+  --location northamerica-northeast1
+```
+
+Look for the Airflow web UI link.
+
+Open it in your browser.
+
+---
+
+## 12.18 Trigger the DAG manually
+
+In Airflow:
+
+1. Search for:
+
+```text
+undp_pipeline_dag
+```
+
+2. Unpause the DAG if needed.
+
+3. Click the play button.
+
+4. Choose:
+
+```text
+Trigger DAG
+```
+
+You should see this flow:
+
+```text
+start → run_undp_ingest_job → run_undp_chunk_job → run_undp_embed_job → end
+```
+
+---
+
+## 12.19 Check the result in GCS
+
+After the DAG finishes, check your bucket:
+
+```text
+gs://undp-project-documents-llm-2026/raw/
+gs://undp-project-documents-llm-2026/processed/
+gs://undp-project-documents-llm-2026/embeddings/
+gs://undp-project-documents-llm-2026/metadata/
+```
+
+Expected result:
+
+```text
+raw/         contains downloaded PDFs
+processed/   contains chunk JSONL files
+embeddings/  contains embedding files
+metadata/    contains metadata CSV files
+```
+
+---
+
+## 12.20 Optional: schedule the DAG weekly
+
+Once the manual run works, change this line:
+
+```python
+schedule_interval=None,
+```
+
+To this:
+
+```python
+schedule_interval="@weekly",
+```
+
+Then upload the DAG again:
+
+```powershell
+gcloud composer environments storage dags import `
+  --environment undp-composer `
+  --location northamerica-northeast1 `
+  --source dags/undp_pipeline_dag.py
+```
+
+Now Composer will run the pipeline weekly.
+
+---
+
+# Final Step 12 Deliverables
+
+At the end of Step 12, you should have:
+
+```text
+Artifact Registry repo:
+  undp-pipeline
+
+Docker images:
+  undp-ingest:latest
+  undp-chunk:latest
+  undp-embed:latest
+
+Cloud Run Jobs:
+  undp-ingest-job
+  undp-chunk-job
+  undp-embed-job
+
+Composer environment:
+  undp-composer
+
+Airflow DAG:
+  undp_pipeline_dag
+```
+
+Your production pipeline is now:
+
+```text
+UNDP API
+   ↓
+Cloud Run Job: ingest PDFs
+   ↓
+GCS raw/
+   ↓
+Cloud Run Job: chunk PDFs
+   ↓
+GCS processed/
+   ↓
+Cloud Run Job: embed chunks
+   ↓
+GCS embeddings/
+   ↓
+Streamlit chatbot uses embeddings
+```
+
+
+For your specific UNDP project, Cloud Composer is probably the most expensive component.
+
+A realistic estimate:
+
+Component	Monthly Cost
+Cloud Storage (few GB PDFs)	<$1
+Artifact Registry	<$1
+Cloud Run Jobs (weekly runs)	<$1–5
+Vertex AI Embeddings + Gemini	$1–20 depending on usage
+Cloud Run Streamlit chatbot	$0–10
+Cloud Composer	~$100–400+
+
+change the methodology to Cloud Scheduler
