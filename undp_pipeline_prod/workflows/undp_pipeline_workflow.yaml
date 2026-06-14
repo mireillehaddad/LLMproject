@@ -1,0 +1,23 @@
+main:
+  steps:
+
+  - ingest:
+      call: googleapis.run.v1.namespaces.jobs.run
+      args:
+        name: namespaces/1097805338474/jobs/undp-ingest-job
+        location: northamerica-northeast1
+
+  - chunk:
+      call: googleapis.run.v1.namespaces.jobs.run
+      args:
+        name: namespaces/1097805338474/jobs/undp-chunk-job
+        location: northamerica-northeast1
+
+  - embed:
+      call: googleapis.run.v1.namespaces.jobs.run
+      args:
+        name: namespaces/1097805338474/jobs/undp-embed-job
+        location: northamerica-northeast1
+
+  - done:
+      return: "UNDP pipeline completed successfully"

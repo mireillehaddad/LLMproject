@@ -105,7 +105,7 @@ Once all services are enabled successfully, continue to
 
 
 # Step 2 — Create the GCS Bucket and Folder Structure
-# Step 2 — Create the GCS Bucket and Folder Structure
+
 
 The UNDP pipeline stores PDFs, processed chunks, embeddings, and metadata in a Google Cloud Storage (GCS) bucket.
 
@@ -2358,6 +2358,8 @@ because Google Cloud Workflows is lightweight, inexpensive, and designed specifi
 
 So my preferred final architecture for your UNDP project would be:
 
+Architecture
+
 Cloud Scheduler
       ↓
 Cloud Workflows
@@ -2368,9 +2370,11 @@ Cloud Run Job: chunk
       ↓
 Cloud Run Job: embed
       ↓
-GCS
+Google Cloud Storage
       ↓
-Cloud Run Streamlit Chatbot
+Streamlit Chatbot
+
+
 
 New architecture:
 
@@ -2424,3 +2428,943 @@ undp_pipeline_prod/
 ├── README.md
 └── .gitignore
 
+# Build and Push Docker Images
+
+This step packages each pipeline component into a Docker image and uploads it to Google Artifact Registry.
+
+## Architecture
+
+```text
+Local Source Code
+        ↓
+Docker Image
+        ↓
+Artifact Registry
+        ↓
+Cloud Run Job
+```
+
+The UNDP pipeline contains three Cloud Run Jobs:
+
+```text
+undp-ingest-job
+undp-chunk-job
+undp-embed-job
+```
+
+Each job has its own Docker image.
+
+---
+
+## Prerequisites
+
+Verify Docker is running:
+
+```powershell
+docker --version
+```
+
+Verify the correct GCP project:
+
+```powershell
+gcloud config get-value project
+```
+
+Expected:
+
+```text
+undp-project-documents
+```
+
+Authenticate Docker with Artifact Registry:
+
+```powershell
+gcloud auth configure-docker northamerica-northeast1-docker.pkg.dev
+```
+
+Answer:
+
+```text
+Y
+```
+
+---
+
+## Build and Push Ingest Image
+
+Build:
+
+```powershell
+docker build -f docker/Dockerfile.ingest `
+  -t northamerica-northeast1-docker.pkg.dev/undp-project-documents/undp-pipeline/undp-ingest:latest .
+```
+
+Push:
+
+```powershell
+docker push northamerica-northeast1-docker.pkg.dev/undp-project-documents/undp-pipeline/undp-ingest:latest
+```
+
+---
+
+## Build and Push Chunk Image
+
+Build:
+
+```powershell
+docker build -f docker/Dockerfile.chunk `
+  -t northamerica-northeast1-docker.pkg.dev/undp-project-documents/undp-pipeline/undp-chunk:latest .
+```
+
+Push:
+
+```powershell
+docker push northamerica-northeast1-docker.pkg.dev/undp-project-documents/undp-pipeline/undp-chunk:latest
+```
+
+---
+
+## Build and Push Embed Image
+
+Build:
+
+```powershell
+docker build -f docker/Dockerfile.embed `
+  -t northamerica-northeast1-docker.pkg.dev/undp-project-documents/undp-pipeline/undp-embed:latest .
+```
+
+Push:
+
+```powershell
+docker push northamerica-northeast1-docker.pkg.dev/undp-project-documents/undp-pipeline/undp-embed:latest
+```
+
+---
+
+## Verify Images
+
+List images stored in Artifact Registry:
+
+```powershell
+gcloud artifacts docker images list `
+  northamerica-northeast1-docker.pkg.dev/undp-project-documents/undp-pipeline
+```
+
+Expected images:
+
+```text
+undp-ingest
+undp-chunk
+undp-embed
+```
+
+---
+
+## Troubleshooting
+
+### Push appears stuck
+
+Wait several minutes.
+
+If still stuck:
+
+```powershell
+Ctrl + C
+```
+
+Re-authenticate Docker:
+
+```powershell
+gcloud auth configure-docker northamerica-northeast1-docker.pkg.dev
+```
+
+Retry the push command.
+
+### Permission denied
+
+Verify Artifact Registry permissions:
+
+```powershell
+gcloud auth list
+```
+
+Verify project:
+
+```powershell
+gcloud config get-value project
+```
+
+Expected:
+
+```text
+undp-project-documents
+```
+
+---
+
+## Deliverables
+
+After completing this step:
+
+```text
+Artifact Registry
+└── undp-pipeline
+    ├── undp-ingest:latest
+    ├── undp-chunk:latest
+    └── undp-embed:latest
+```
+
+These images are now ready to be deployed as Cloud Run Jobs.
+# Create Cloud Run Jobs
+
+This step deploys the UNDP pipeline Docker images as Cloud Run Jobs.
+
+Cloud Run Jobs are designed for batch workloads that start, execute, and exit.
+
+The pipeline contains three jobs:
+
+```text
+undp-ingest-job
+undp-chunk-job
+undp-embed-job
+```
+
+---
+
+# Architecture
+
+```text
+Artifact Registry
+        │
+        ▼
+Cloud Run Job: ingest
+        │
+        ▼
+Cloud Run Job: chunk
+        │
+        ▼
+Cloud Run Job: embed
+```
+
+Each job executes a single step of the pipeline.
+
+---
+
+# Prerequisites
+
+Verify the Docker images exist in Artifact Registry:
+
+```powershell
+gcloud artifacts docker images list `
+  northamerica-northeast1-docker.pkg.dev/undp-project-documents/undp-pipeline
+```
+
+Expected images:
+
+```text
+undp-ingest
+undp-chunk
+undp-embed
+```
+
+---
+
+# Deploy Ingestion Job
+
+```powershell
+gcloud run jobs deploy undp-ingest-job `
+  --image northamerica-northeast1-docker.pkg.dev/undp-project-documents/undp-pipeline/undp-ingest:latest `
+  --region northamerica-northeast1
+```
+
+Expected result:
+
+```text
+Job [undp-ingest-job] successfully deployed.
+```
+
+---
+
+# Deploy Chunking Job
+
+```powershell
+gcloud run jobs deploy undp-chunk-job `
+  --image northamerica-northeast1-docker.pkg.dev/undp-project-documents/undp-pipeline/undp-chunk:latest `
+  --region northamerica-northeast1
+```
+
+Expected result:
+
+```text
+Job [undp-chunk-job] successfully deployed.
+```
+
+---
+
+# Deploy Embedding Job
+
+```powershell
+gcloud run jobs deploy undp-embed-job `
+  --image northamerica-northeast1-docker.pkg.dev/undp-project-documents/undp-pipeline/undp-embed:latest `
+  --region northamerica-northeast1
+```
+
+Expected result:
+
+```text
+Job [undp-embed-job] successfully deployed.
+```
+
+---
+
+# Verify Jobs
+
+List all jobs:
+
+```powershell
+gcloud run jobs list `
+  --region northamerica-northeast1
+```
+
+Expected:
+
+```text
+undp-ingest-job
+undp-chunk-job
+undp-embed-job
+```
+
+---
+
+# Test Ingestion Job
+
+Run:
+
+```powershell
+gcloud run jobs execute undp-ingest-job `
+  --region northamerica-northeast1 `
+  --wait
+```
+
+Expected behavior:
+
+```text
+Fetch UNDP projects
+Download new PDFs
+Upload PDFs to GCS
+Create metadata file
+```
+
+---
+
+# Test Chunking Job
+
+Run:
+
+```powershell
+gcloud run jobs execute undp-chunk-job `
+  --region northamerica-northeast1 `
+  --wait
+```
+
+Expected behavior:
+
+```text
+Read PDFs from GCS
+Create text chunks
+Upload JSONL chunk files
+Skip already processed PDFs
+```
+
+---
+
+# Test Embedding Job
+
+Run:
+
+```powershell
+gcloud run jobs execute undp-embed-job `
+  --region northamerica-northeast1 `
+  --wait
+```
+
+Expected behavior:
+
+```text
+Read chunk files
+Generate Gemini embeddings
+Upload embeddings to GCS
+Skip already embedded files
+```
+
+---
+
+# View Execution Logs
+
+List executions:
+
+```powershell
+gcloud run jobs executions list `
+  --job undp-ingest-job `
+  --region northamerica-northeast1
+```
+
+Describe an execution:
+
+```powershell
+gcloud run jobs executions describe EXECUTION_NAME `
+  --region northamerica-northeast1
+```
+
+Open logs:
+
+```powershell
+gcloud logging read `
+  "resource.type=cloud_run_job" `
+  --limit=50
+```
+
+---
+
+# Verify Output in GCS
+
+Expected bucket structure:
+
+```text
+gs://undp-project-documents-llm-2026/
+
+raw/
+processed/
+embeddings/
+metadata/
+```
+
+Expected contents:
+
+```text
+raw/
+    PDF documents
+
+processed/
+    JSONL chunk files
+
+embeddings/
+    Embedded JSONL files
+
+metadata/
+    Ingestion metadata CSV files
+```
+
+---
+
+# Deliverables
+
+After completing this step:
+
+```text
+Cloud Run Jobs
+
+✓ undp-ingest-job
+✓ undp-chunk-job
+✓ undp-embed-job
+```
+
+The pipeline components are now deployed and ready for orchestration using Cloud Workflows and Cloud Scheduler.
+
+
+# Step 13 — # Cloud Workflows and Cloud Scheduler
+
+This step connects the UNDP pipeline components into a fully automated workflow.
+
+The workflow executes:
+
+```text
+undp-ingest-job
+      ↓
+undp-chunk-job
+      ↓
+undp-embed-job
+```
+
+Cloud Scheduler will later trigger the workflow automatically on a schedule.
+
+---
+
+# Architecture
+
+```text
+Cloud Scheduler
+      ↓
+Cloud Workflow
+      ↓
+Cloud Run Job: ingest
+      ↓
+Cloud Run Job: chunk
+      ↓
+Cloud Run Job: embed
+      ↓
+Google Cloud Storage
+      ↓
+Streamlit Chatbot
+```
+
+---
+
+# Create Workflow Definition
+
+File:
+
+```text
+workflows/undp_pipeline_workflow.yaml
+```
+
+Content:
+
+```yaml
+main:
+  steps:
+
+    - ingest:
+        call: googleapis.run.v1.namespaces.jobs.run
+        args:
+          name: namespaces/1097805338474/jobs/undp-ingest-job
+          location: northamerica-northeast1
+
+    - chunk:
+        call: googleapis.run.v1.namespaces.jobs.run
+        args:
+          name: namespaces/1097805338474/jobs/undp-chunk-job
+          location: northamerica-northeast1
+
+    - embed:
+        call: googleapis.run.v1.namespaces.jobs.run
+        args:
+          name: namespaces/1097805338474/jobs/undp-embed-job
+          location: northamerica-northeast1
+
+    - done:
+        return: "UNDP pipeline completed successfully"
+```
+
+---
+
+# Enable Workflows API
+
+```powershell
+gcloud services enable workflows.googleapis.com
+```
+
+---
+
+# Deploy Workflow
+
+```powershell
+gcloud workflows deploy undp-pipeline-workflow `
+  --source=workflows/undp_pipeline_workflow.yaml `
+  --location=northamerica-northeast1
+```
+
+Expected result:
+
+```text
+state: ACTIVE
+```
+
+---
+
+# Configure IAM Permissions
+
+Grant Cloud Run permissions:
+
+```powershell
+gcloud projects add-iam-policy-binding undp-project-documents `
+  --member="serviceAccount:1097805338474-compute@developer.gserviceaccount.com" `
+  --role="roles/run.developer"
+```
+
+```powershell
+gcloud projects add-iam-policy-binding undp-project-documents `
+  --member="serviceAccount:1097805338474-compute@developer.gserviceaccount.com" `
+  --role="roles/run.viewer"
+```
+
+```powershell
+gcloud projects add-iam-policy-binding undp-project-documents `
+  --member="serviceAccount:1097805338474-compute@developer.gserviceaccount.com" `
+  --role="roles/run.admin"
+```
+
+Allow the workflow service account to act as a service account:
+
+```powershell
+gcloud iam service-accounts add-iam-policy-binding `
+  1097805338474-compute@developer.gserviceaccount.com `
+  --member="serviceAccount:1097805338474-compute@developer.gserviceaccount.com" `
+  --role="roles/iam.serviceAccountUser"
+```
+
+---
+
+# Run Workflow Manually
+
+```powershell
+gcloud workflows run undp-pipeline-workflow `
+  --location=northamerica-northeast1
+```
+
+Successful result:
+
+```text
+state: SUCCEEDED
+result: "UNDP pipeline completed successfully"
+```
+
+Example:
+
+```text
+duration: 55.31s
+state: SUCCEEDED
+```
+
+---
+
+# View Workflow Executions
+
+List executions:
+
+```powershell
+gcloud workflows executions list undp-pipeline-workflow `
+  --location=northamerica-northeast1
+```
+
+Describe a specific execution:
+
+```powershell
+gcloud workflows executions describe EXECUTION_ID `
+  --workflow=undp-pipeline-workflow `
+  --location=northamerica-northeast1
+```
+
+---
+
+# Verify Pipeline Execution
+
+The workflow should execute:
+
+```text
+undp-ingest-job
+```
+
+Downloads new UNDP PDFs.
+
+```text
+undp-chunk-job
+```
+
+Creates chunk files.
+
+```text
+undp-embed-job
+```
+
+Creates Gemini embeddings.
+
+Verify outputs:
+
+```text
+gs://undp-project-documents-llm-prod/raw/
+gs://undp-project-documents-llm-prod/processed/
+gs://undp-project-documents-llm-prod/embeddings/
+gs://undp-project-documents-llm-prod/metadata/
+```
+
+---
+
+# Deliverables
+
+After completing this step:
+
+```text
+✓ Cloud Workflow deployed
+
+✓ Workflow state = ACTIVE
+
+✓ Workflow execution state = SUCCEEDED
+
+✓ Cloud Run Jobs orchestrated automatically
+
+✓ End-to-end pipeline execution verified
+```
+
+---
+
+# Next Step
+
+Create a Cloud Scheduler job to automatically execute the workflow every week.
+
+Target architecture:
+
+```text
+Cloud Scheduler
+      ↓
+Cloud Workflow
+      ↓
+undp-ingest-job
+      ↓
+undp-chunk-job
+      ↓
+undp-embed-job
+      ↓
+Google Cloud Storage
+      ↓
+Streamlit Chatbot
+```
+
+
+# Step  14:
+
+# Create Cloud Scheduler (Daily Execution)
+
+This step automates the UNDP pipeline by triggering the Cloud Workflow every day.
+
+Current schedule:
+
+```text
+Daily
+```
+
+The schedule can later be changed to:
+
+```text
+Weekly
+```
+
+without changing the workflow or Cloud Run Jobs.
+
+---
+
+# Architecture
+
+```text
+Cloud Scheduler
+      ↓
+Cloud Workflow
+      ↓
+undp-ingest-job
+      ↓
+undp-chunk-job
+      ↓
+undp-embed-job
+      ↓
+Google Cloud Storage
+      ↓
+Streamlit Chatbot
+```
+
+---
+
+# Enable Cloud Scheduler API
+
+```powershell
+gcloud services enable cloudscheduler.googleapis.com
+```
+
+Verify:
+
+```powershell
+gcloud services list --enabled | findstr scheduler
+```
+
+Expected:
+
+```text
+cloudscheduler.googleapis.com
+```
+
+---
+
+# Create Scheduler Service Account
+
+Create a dedicated service account:
+
+```powershell
+gcloud iam service-accounts create scheduler-sa `
+  --display-name="UNDP Scheduler Service Account"
+```
+
+Result:
+
+```text
+scheduler-sa@undp-project-documents.iam.gserviceaccount.com
+```
+
+---
+
+# Grant Workflow Invoker Permission
+
+Allow Cloud Scheduler to execute the workflow:
+
+```powershell
+gcloud projects add-iam-policy-binding undp-project-documents `
+  --member="serviceAccount:scheduler-sa@undp-project-documents.iam.gserviceaccount.com" `
+  --role="roles/workflows.invoker"
+```
+
+---
+
+# Create Daily Scheduler Job
+
+Run every day at 6:00 AM Montreal time:
+
+```powershell
+gcloud scheduler jobs create http undp-daily-pipeline `
+  --location=northamerica-northeast1 `
+  --schedule="0 6 * * *" `
+  --time-zone="America/Montreal" `
+  --uri="https://workflowexecutions.googleapis.com/v1/projects/undp-project-documents/locations/northamerica-northeast1/workflows/undp-pipeline-workflow/executions" `
+  --http-method=POST `
+  --oauth-service-account-email="scheduler-sa@undp-project-documents.iam.gserviceaccount.com"
+```
+
+Cron expression:
+
+```text
+0 6 * * *
+```
+
+Meaning:
+
+```text
+Minute: 0
+Hour: 6
+Every day
+```
+
+---
+
+# Test Scheduler Immediately
+
+Run manually:
+
+```powershell
+gcloud scheduler jobs run undp-daily-pipeline `
+  --location=northamerica-northeast1
+```
+
+---
+
+# Verify Scheduler Job
+
+List jobs:
+
+```powershell
+gcloud scheduler jobs list `
+  --location=northamerica-northeast1
+```
+
+Expected:
+
+```text
+undp-daily-pipeline
+```
+
+Describe job:
+
+```powershell
+gcloud scheduler jobs describe undp-daily-pipeline `
+  --location=northamerica-northeast1
+```
+
+Expected:
+
+```text
+state: ENABLED
+```
+
+---
+
+# Verify Workflow Execution
+
+List workflow executions:
+
+```powershell
+gcloud workflows executions list undp-pipeline-workflow `
+  --location=northamerica-northeast1
+```
+
+Expected:
+
+```text
+state: SUCCEEDED
+```
+
+---
+
+# Change to Weekly Later
+
+When ready to reduce costs:
+
+```powershell
+gcloud scheduler jobs update http undp-daily-pipeline `
+  --location=northamerica-northeast1 `
+  --schedule="0 6 * * 1"
+```
+
+Weekly cron:
+
+```text
+0 6 * * 1
+```
+
+Meaning:
+
+```text
+Every Monday
+06:00 AM
+```
+
+---
+
+# Deliverables
+
+After completing this step:
+
+```text
+✓ Cloud Scheduler enabled
+
+✓ Daily schedule configured
+
+✓ Workflow automatically executed
+
+✓ Ingestion automated
+
+✓ Chunking automated
+
+✓ Embedding automated
+
+✓ End-to-end UNDP pipeline fully automated
+```
+
+---
+
+# Final Production Architecture
+
+```text
+UNDP API
+    ↓
+Cloud Scheduler
+    ↓
+Cloud Workflow
+    ↓
+Cloud Run Job: ingest
+    ↓
+Cloud Run Job: chunk
+    ↓
+Cloud Run Job: embed
+    ↓
+Google Cloud Storage
+    ↓
+Streamlit Cloud Run Chatbot
+```
+
+This architecture is suitable for a personal production deployment and can later be migrated to Cloud Composer (Apache Airflow) if enterprise-scale orchestration is required.

@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from pypdf import PdfReader
 
 from src.common.gcs_utils import (
+    blob_exists,
     download_bytes,
     list_blobs,
     upload_text,
@@ -22,12 +23,10 @@ def chunk_text(
     overlap: int = CHUNK_OVERLAP,
 ) -> list[str]:
     chunks: list[str] = []
-
     start = 0
 
     while start < len(text):
         end = start + chunk_size
-
         chunk = text[start:end].strip()
 
         if chunk:
@@ -48,9 +47,14 @@ def output_blob_name(pdf_blob_name: str) -> str:
     return f"{settings.processed_prefix}/{relative_path}.jsonl"
 
 
-def process_pdf(pdf_blob_name: str) -> int:
-    pdf_bytes = download_bytes(pdf_blob_name)
+def process_pdf(pdf_blob_name: str) -> str:
+    destination_blob = output_blob_name(pdf_blob_name)
 
+    if blob_exists(destination_blob):
+        print(f"Already chunked, skipping: {destination_blob}")
+        return "already_chunked"
+
+    pdf_bytes = download_bytes(pdf_blob_name)
     reader = PdfReader(io.BytesIO(pdf_bytes))
 
     records: list[dict] = []
@@ -71,28 +75,24 @@ def process_pdf(pdf_blob_name: str) -> int:
                     "page_number": page_index,
                     "chunk_index": chunk_index,
                     "text": chunk,
-                    "created_at": datetime.now(
-                        timezone.utc
-                    ).isoformat(),
+                    "created_at": datetime.now(timezone.utc).isoformat(),
                 }
             )
 
+    if not records:
+        print(f"No text chunks found in: {pdf_blob_name}")
+        return "no_chunks"
+
     output_text = "\n".join(
-        json.dumps(
-            record,
-            ensure_ascii=False,
-        )
+        json.dumps(record, ensure_ascii=False)
         for record in records
     )
 
-    destination_blob = output_blob_name(pdf_blob_name)
+    upload_text(destination_blob, output_text)
 
-    upload_text(
-        destination_blob,
-        output_text,
-    )
+    print(f"Saved chunks: gs://{settings.bucket_name}/{destination_blob}")
 
-    return len(records)
+    return "chunked"
 
 
 def run() -> None:
@@ -104,31 +104,31 @@ def run() -> None:
 
     print(f"Found PDFs: {len(pdf_blobs)}")
 
-    total_chunks = 0
+    total_chunked = 0
+    total_skipped = 0
+    total_no_chunks = 0
 
     for pdf_blob in pdf_blobs:
-        print(
-            f"Chunking: "
-            f"gs://{settings.bucket_name}/{pdf_blob}"
-        )
+        print(f"\nChunking: gs://{settings.bucket_name}/{pdf_blob}")
 
         try:
-            chunk_count = process_pdf(pdf_blob)
+            status = process_pdf(pdf_blob)
 
-            total_chunks += chunk_count
-
-            print(f"Created chunks: {chunk_count}")
+            if status == "chunked":
+                total_chunked += 1
+            elif status == "already_chunked":
+                total_skipped += 1
+            elif status == "no_chunks":
+                total_no_chunks += 1
 
         except Exception as exc:
-            print(
-                f"Failed to chunk "
-                f"{pdf_blob}: {exc}"
-            )
+            print(f"Failed to chunk {pdf_blob}: {exc}")
 
     print()
     print("Chunking complete.")
-    print(f"Total PDFs processed: {len(pdf_blobs)}")
-    print(f"Total chunks created: {total_chunks}")
+    print(f"PDFs newly chunked: {total_chunked}")
+    print(f"PDFs skipped because already chunked: {total_skipped}")
+    print(f"PDFs with no chunks: {total_no_chunks}")
 
 
 if __name__ == "__main__":
