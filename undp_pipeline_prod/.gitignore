@@ -1,0 +1,26 @@
+# Python 
+__pycache__/ 
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environment
+.venv/
+venv/
+
+# Environment files
+.env
+
+# Local data 
+data/
+*.pdf
+*.jsonl
+*.csv
+
+# Streamlit 
+.streamlit/
+# OS / editor 
+.DS_Store
+Thumbs.db 
+.vscode/
+.idea/

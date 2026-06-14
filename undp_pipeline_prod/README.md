@@ -523,3 +523,671 @@ undp_pipeline_prod/
 ---
 
 After creating this structure, continue to **Step 5 — Add Project Configuration Files**.
+
+
+Step 5 — Add Project Configuration Files
+
+This step adds the basic configuration files used by the local pipeline, Cloud Run Jobs, Cloud Build, and Cloud Composer.
+
+1. Make Sure You Are in the Project Folder
+cd C:\Users\mirei\OneDrive\Desktop\LLMproject\undp_pipeline_prod
+2. Add .env.example
+
+Open .env.example and add:
+
+PROJECT_ID=undp-project-documents
+REGION=northamerica-northeast1
+BUCKET_NAME=undp-project-documents-llm-prod
+
+YEARS=2024,2025,2026
+COUNTRIES=Lebanon,Egypt
+MAX_NEW_PDFS=50
+
+RAW_PREFIX=raw
+PROCESSED_PREFIX=processed
+EMBEDDINGS_PREFIX=embeddings
+METADATA_PREFIX=metadata
+
+EMBEDDING_MODEL=gemini-embedding-001
+GENERATION_MODEL=gemini-2.5-flash
+3. Add .gitignore
+
+Open .gitignore and add:
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environment
+.venv/
+venv/
+
+# Environment files
+.env
+
+# Local data
+data/
+*.pdf
+*.jsonl
+*.csv
+
+# Streamlit
+.streamlit/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+4. Add src/common/settings.py
+
+Open src\common\settings.py and add:
+
+import os
+from dataclasses import dataclass
+from dotenv import load_dotenv
+
+
+load_dotenv()
+
+
+@dataclass(frozen=True)
+class Settings:
+    project_id: str = os.getenv("PROJECT_ID", "undp-project-documents")
+    region: str = os.getenv("REGION", "northamerica-northeast1")
+    bucket_name: str = os.getenv("BUCKET_NAME", "undp-project-documents-llm-prod")
+
+    years: tuple[int, ...] = tuple(
+        int(year.strip())
+        for year in os.getenv("YEARS", "2024,2025,2026").split(",")
+        if year.strip()
+    )
+
+    countries: tuple[str, ...] = tuple(
+        country.strip()
+        for country in os.getenv("COUNTRIES", "Lebanon,Egypt").split(",")
+        if country.strip()
+    )
+
+    max_new_pdfs: int = int(os.getenv("MAX_NEW_PDFS", "50"))
+
+    raw_prefix: str = os.getenv("RAW_PREFIX", "raw")
+    processed_prefix: str = os.getenv("PROCESSED_PREFIX", "processed")
+    embeddings_prefix: str = os.getenv("EMBEDDINGS_PREFIX", "embeddings")
+    metadata_prefix: str = os.getenv("METADATA_PREFIX", "metadata")
+
+    embedding_model: str = os.getenv("EMBEDDING_MODEL", "gemini-embedding-001")
+    generation_model: str = os.getenv("GENERATION_MODEL", "gemini-2.5-flash")
+
+
+settings = Settings()
+5. Add src/common/gcs_utils.py
+
+Open src\common\gcs_utils.py and add:
+
+from google.cloud import storage
+
+from src.common.settings import settings
+
+
+def get_bucket():
+    client = storage.Client(project=settings.project_id)
+    return client.bucket(settings.bucket_name)
+
+
+def blob_exists(blob_name: str) -> bool:
+    bucket = get_bucket()
+    return bucket.blob(blob_name).exists()
+
+
+def upload_bytes(blob_name: str, data: bytes, content_type: str | None = None) -> None:
+    bucket = get_bucket()
+    blob = bucket.blob(blob_name)
+    blob.upload_from_string(data, content_type=content_type)
+
+
+def upload_text(blob_name: str, text: str) -> None:
+    upload_bytes(blob_name, text.encode("utf-8"), content_type="text/plain")
+
+
+def download_bytes(blob_name: str) -> bytes:
+    bucket = get_bucket()
+    return bucket.blob(blob_name).download_as_bytes()
+
+
+def download_text(blob_name: str) -> str:
+    return download_bytes(blob_name).decode("utf-8")
+
+
+def list_blobs(prefix: str) -> list[str]:
+    bucket = get_bucket()
+    return [blob.name for blob in bucket.list_blobs(prefix=prefix)]
+6. Verify Configuration Files
+
+Run:
+
+python -c "from src.common.settings import settings; print(settings)"
+
+Expected output should include:
+
+project_id='undp-project-documents'
+region='northamerica-northeast1'
+bucket_name='undp-project-documents-llm-prod'
+
+# Step 6 — Add the UNDP Ingestion Job
+
+This step adds the ingestion script that downloads UNDP project PDFs and uploads them to Google Cloud Storage under the `raw/` folder.
+
+---
+
+## 1. Open the Ingestion File
+
+Open:
+
+```text
+src\ingest\run_ingest.py
+```
+
+---
+
+## 2. Add the Ingestion Code
+
+Paste this code:
+
+```python
+import csv
+import io
+import re
+from datetime import datetime, timezone
+
+import requests
+
+from src.common.gcs_utils import blob_exists, upload_bytes, upload_text
+from src.common.settings import settings
+
+
+UNDP_PROJECT_LIST_URL = "https://api.open.undp.org/api/project_list/?year={year}"
+UNDP_PROJECT_DETAILS_URL = "https://api.open.undp.org/api/projects/{project_id}.json"
+
+
+def safe_filename(text: str) -> str:
+    text = text.strip()
+    text = re.sub(r"[^\w\-.]+", "_", text)
+    text = re.sub(r"_+", "_", text)
+    return text[:180]
+
+
+def get_project_list(year: int) -> list[dict]:
+    url = UNDP_PROJECT_LIST_URL.format(year=year)
+
+    response = requests.get(url, timeout=60)
+    response.raise_for_status()
+
+    data = response.json()
+    projects_data = data.get("data", {})
+
+    if isinstance(projects_data, dict):
+        projects = projects_data.get("data", [])
+    else:
+        projects = projects_data
+
+    if not isinstance(projects, list):
+        return []
+
+    return [
+        project
+        for project in projects
+        if isinstance(project, dict)
+    ]
+
+
+def get_project_details(project_id: str) -> dict:
+    url = UNDP_PROJECT_DETAILS_URL.format(project_id=project_id)
+
+    response = requests.get(url, timeout=60)
+    response.raise_for_status()
+
+    return response.json()
+
+
+def extract_documents(project_details: dict) -> list[dict]:
+    documents = project_details.get("documents", [])
+
+    if isinstance(documents, dict):
+        documents = documents.get("data", [])
+
+    if not isinstance(documents, list):
+        return []
+
+    return documents
+
+
+def get_pdf_url(document: dict) -> str | None:
+    for key in ["url", "download_url", "document_url", "file_url"]:
+        value = document.get(key)
+
+        if value and str(value).lower().endswith(".pdf"):
+            return str(value)
+
+    value = document.get("url")
+
+    if value and ".pdf" in str(value).lower():
+        return str(value)
+
+    return None
+
+
+def download_pdf(url: str) -> bytes:
+    response = requests.get(url, timeout=120)
+    response.raise_for_status()
+
+    return response.content
+
+
+def country_matches(project: dict) -> bool:
+    project_country = str(
+        project.get("country")
+        or project.get("country_name")
+        or project.get("countryname")
+        or ""
+    ).strip()
+
+    return project_country in settings.countries
+
+
+def run() -> None:
+    uploaded_count = 0
+    skipped_count = 0
+    metadata_rows: list[dict] = []
+
+    for year in settings.years:
+        print(f"Fetching UNDP projects for year={year}")
+
+        projects = get_project_list(year)
+
+        for project in projects:
+            if uploaded_count >= settings.max_new_pdfs:
+                break
+
+            if not country_matches(project):
+                continue
+
+            project_id = str(
+                project.get("project_id")
+                or project.get("id")
+                or project.get("projectid")
+                or ""
+            ).strip()
+
+            if not project_id:
+                continue
+
+            country = str(
+                project.get("country")
+                or project.get("country_name")
+                or project.get("countryname")
+                or "unknown"
+            ).strip()
+
+            try:
+                details = get_project_details(project_id)
+            except Exception as exc:
+                print(f"Skipping project {project_id}: could not fetch details: {exc}")
+                continue
+
+            documents = extract_documents(details)
+
+            for document in documents:
+                if uploaded_count >= settings.max_new_pdfs:
+                    break
+
+                title = str(
+                    document.get("title")
+                    or document.get("name")
+                    or document.get("document_name")
+                    or "document"
+                ).strip()
+
+                if not title.lower().startswith("project document"):
+                    continue
+
+                pdf_url = get_pdf_url(document)
+
+                if not pdf_url:
+                    continue
+
+                document_id = str(
+                    document.get("id")
+                    or document.get("document_id")
+                    or safe_filename(title)
+                )
+
+                file_name = f"{document_id}_{safe_filename(title)}.pdf"
+
+                blob_name = (
+                    f"{settings.raw_prefix}/"
+                    f"year={year}/"
+                    f"country={safe_filename(country)}/"
+                    f"project_id={project_id}/"
+                    f"{file_name}"
+                )
+
+                if blob_exists(blob_name):
+                    skipped_count += 1
+                    print(
+                        f"Skipped existing PDF: "
+                        f"gs://{settings.bucket_name}/{blob_name}"
+                    )
+                    continue
+
+                try:
+                    print(f"Downloading PDF: {title}")
+
+                    pdf_bytes = download_pdf(pdf_url)
+
+                    upload_bytes(
+                        blob_name,
+                        pdf_bytes,
+                        content_type="application/pdf",
+                    )
+
+                    uploaded_count += 1
+
+                    print(f"Uploaded: gs://{settings.bucket_name}/{blob_name}")
+
+                    metadata_rows.append(
+                        {
+                            "year": year,
+                            "country": country,
+                            "project_id": project_id,
+                            "document_id": document_id,
+                            "title": title,
+                            "pdf_url": pdf_url,
+                            "gcs_path": f"gs://{settings.bucket_name}/{blob_name}",
+                            "uploaded_at": datetime.now(timezone.utc).isoformat(),
+                        }
+                    )
+
+                except Exception as exc:
+                    print(f"Failed to process document {title}: {exc}")
+
+    if metadata_rows:
+        output = io.StringIO()
+
+        writer = csv.DictWriter(
+            output,
+            fieldnames=metadata_rows[0].keys(),
+        )
+
+        writer.writeheader()
+        writer.writerows(metadata_rows)
+
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        metadata_blob = f"{settings.metadata_prefix}/ingest_metadata_{timestamp}.csv"
+
+        upload_text(metadata_blob, output.getvalue())
+
+        print(f"Uploaded metadata: gs://{settings.bucket_name}/{metadata_blob}")
+
+    print()
+    print("Ingestion complete.")
+    print(f"Uploaded new PDFs: {uploaded_count}")
+    print(f"Skipped existing PDFs: {skipped_count}")
+
+
+if __name__ == "__main__":
+    run()
+```
+
+---
+
+## 3. Run the Ingestion Job Locally
+
+From the project root, run:
+
+```powershell
+python -m src.ingest.run_ingest
+```
+
+---
+
+## 4. Expected Output
+
+You should see messages similar to:
+
+```text
+Fetching UNDP projects for year=2024
+Fetching UNDP projects for year=2025
+Fetching UNDP projects for year=2026
+Downloading PDF: Project Document
+Uploaded: gs://undp-project-documents-llm-prod/raw/year=2026/country=Lebanon/project_id=.../document.pdf
+Uploaded metadata: gs://undp-project-documents-llm-prod/metadata/ingest_metadata_YYYYMMDD_HHMMSS.csv
+
+Ingestion complete.
+Uploaded new PDFs: 12
+Skipped existing PDFs: 0
+```
+
+---
+
+## 5. Verify Files in GCS
+
+Run:
+
+```powershell
+gcloud storage ls gs://undp-project-documents-llm-prod/raw/ --recursive
+```
+
+You should see uploaded PDF files under paths like:
+
+```text
+gs://undp-project-documents-llm-prod/raw/year=2026/country=Lebanon/project_id=01003798/3406425_Project_Document_ProDoc_.pdf
+```
+
+Also verify metadata:
+
+```powershell
+gcloud storage ls gs://undp-project-documents-llm-prod/metadata/
+```
+
+---
+
+## What This Job Does
+
+| Step | Description                                     |
+| ---- | ----------------------------------------------- |
+| 1    | Reads years and countries from project settings |
+| 2    | Calls the UNDP project list API                 |
+| 3    | Handles the nested UNDP API response            |
+| 4    | Filters projects by country                     |
+| 5    | Gets project details                            |
+| 6    | Finds project documents                         |
+| 7    | Downloads PDF files                             |
+| 8    | Uploads PDFs to GCS `raw/`                      |
+| 9    | Saves ingestion metadata to GCS `metadata/`     |
+
+You are ready for **Step 7 — Add the PDF Chunking Job**.
+
+# Step 7 — Add the PDF Chunking Job
+
+This step creates the PDF chunking job that reads PDF files from Google Cloud Storage, extracts text, splits it into overlapping chunks, and stores the chunked output in the `processed/` folder.
+
+The chunking job will run after the ingestion job in the production pipeline.
+
+---
+
+## 1. Open the Chunking Script
+
+Open:
+
+```text
+src/chunk/run_chunk.py
+```
+
+---
+
+## 2. Add the Chunking Code
+
+Paste the PDF chunking code into:
+
+```text
+src/chunk/run_chunk.py
+```
+
+The script will:
+
+1. Read PDF files from `raw/`
+2. Extract text page by page
+3. Split text into overlapping chunks
+4. Add metadata to each chunk
+5. Save chunk records as JSONL files in `processed/`
+
+---
+
+## 3. Verify Required Imports
+
+The chunking script uses:
+
+```python
+from pypdf import PdfReader
+
+from src.common.gcs_utils import (
+    download_bytes,
+    list_blobs,
+    upload_text,
+)
+
+from src.common.settings import settings
+```
+
+---
+
+## 4. Run the Chunking Job Locally
+
+From the project root:
+
+```powershell
+python -m src.chunk.run_chunk
+```
+
+---
+
+## 5. Expected Output
+
+Example:
+
+```text
+Found PDFs: 12
+
+Chunking: gs://undp-project-documents-llm-prod/raw/year=2026/country=Lebanon/project_id=01003798/3406425_Project_Document__ProDoc_.pdf
+
+Created chunks: 109
+
+Chunking complete.
+
+Total PDFs processed: 12
+Total chunks created: 1427
+```
+
+---
+
+## 6. Verify Processed Files
+
+List the processed files:
+
+```powershell
+gcloud storage ls gs://undp-project-documents-llm-prod/processed/ --recursive
+```
+
+Example:
+
+```text
+gs://undp-project-documents-llm-prod/processed/year=2026/country=Lebanon/project_id=01003798/3406425_Project_Document__ProDoc_.pdf.jsonl
+```
+
+---
+
+## 7. Verify Chunk Content
+
+Download one processed file:
+
+```powershell
+gcloud storage cp `
+gs://undp-project-documents-llm-prod/processed/year=2026/country=Lebanon/project_id=01003798/3406425_Project_Document__ProDoc_.pdf.jsonl `
+sample_chunks.jsonl
+```
+
+Inspect the first lines:
+
+```powershell
+Get-Content sample_chunks.jsonl -Head 3
+```
+
+Example:
+
+```json
+{"source_pdf_blob":"raw/...pdf","page_number":1,"chunk_index":1,"text":"..."}
+{"source_pdf_blob":"raw/...pdf","page_number":1,"chunk_index":2,"text":"..."}
+{"source_pdf_blob":"raw/...pdf","page_number":2,"chunk_index":1,"text":"..."}
+```
+
+---
+
+## Output Structure
+
+After processing:
+
+```text
+raw/
+└── year=2026/
+    └── country=Lebanon/
+        └── project_id=01003798/
+            └── document.pdf
+
+processed/
+└── year=2026/
+    └── country=Lebanon/
+        └── project_id=01003798/
+            └── document.pdf.jsonl
+```
+
+---
+
+## What the Chunking Job Produces
+
+Each chunk contains:
+
+| Field           | Description                  |
+| --------------- | ---------------------------- |
+| source_pdf_blob | Original PDF location in GCS |
+| page_number     | PDF page number              |
+| chunk_index     | Chunk number within the page |
+| text            | Chunk text                   |
+| created_at      | Processing timestamp         |
+
+---
+
+## Production Pipeline Flow
+
+```text
+UNDP API
+    ↓
+Ingestion Job
+    ↓
+raw/
+    ↓
+Chunking Job
+    ↓
+processed/
+    ↓
+Embedding Job
+    ↓
+embeddings/
+    ↓
+Gemini RAG Chatbot
+```
+
+Once chunk files are successfully created in `processed/`, continue to **Step 8 — Add the Embedding Job**.
+
