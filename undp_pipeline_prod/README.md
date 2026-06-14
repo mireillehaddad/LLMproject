@@ -1368,11 +1368,901 @@ After embeddings are generated, the next step is:
 Step 9 — Build the Retrieval and Question Answering Pipeline
 ```
 
-The retrieval pipeline will:
+# Step 9 — Retrieval and Question Answering Pipeline
 
-1. Embed the user's question.
-2. Compare the question embedding with document embeddings.
-3. Retrieve the most relevant chunks.
-4. Send the retrieved context to Gemini.
-5. Generate a grounded answer with citations.
+## Objective
+
+Build the Retrieval-Augmented Generation (RAG) pipeline that:
+
+1. Receives a user question.
+2. Generates a query embedding.
+3. Loads document embeddings from Google Cloud Storage.
+4. Finds the most relevant chunks.
+5. Builds a context from retrieved chunks.
+6. Sends the context to Gemini.
+7. Returns a grounded answer.
+
+---
+
+# Architecture
+
+```text
+User Question
+      │
+      ▼
+Gemini Query Embedding
+      │
+      ▼
+Load Document Embeddings
+      │
+      ▼
+Cosine Similarity Search
+      │
+      ▼
+Top K Chunks
+      │
+      ▼
+Build Context
+      │
+      ▼
+Gemini 2.5 Flash
+      │
+      ▼
+Answer
+```
+
+---
+
+# Project Structure
+
+Create the following files:
+
+```text
+src/
+├── retrieval/
+│   ├── __init__.py
+│   └── retriever.py
+│
+├── chatbot/
+│   ├── app.py
+│   └── qa.py
+│
+scripts/
+└── test_rag.py
+```
+
+---
+
+# Retriever Module
+
+File:
+
+```text
+src/retrieval/retriever.py
+```
+
+Responsibilities:
+
+* Load embeddings from GCS
+* Generate query embeddings
+* Calculate cosine similarity
+* Rank document chunks
+* Remove duplicate chunks
+* Return the top K results
+
+---
+
+# Loading Embeddings
+
+Read embedding files from:
+
+```text
+gs://undp-project-documents-llm-prod/embeddings/
+```
+
+Each embedding record contains:
+
+```json
+{
+  "text": "...",
+  "embedding": [...],
+  "page_number": 12,
+  "source_pdf_blob": "...",
+  "embedding_model": "gemini-embedding-001"
+}
+```
+
+---
+
+# Query Embedding
+
+Generate question embeddings using:
+
+```text
+gemini-embedding-001
+```
+
+Configuration:
+
+```python
+task_type="RETRIEVAL_QUERY"
+output_dimensionality=768
+```
+
+This matches the embedding configuration used during document embedding.
+
+---
+
+# Similarity Search
+
+For each document chunk:
+
+1. Compute cosine similarity between the query embedding and document embedding.
+2. Sort results by similarity score.
+3. Select the highest scoring chunks.
+
+Formula:
+
+```text
+cosine_similarity =
+dot(query_embedding, document_embedding)
+/
+(
+||query_embedding||
+*
+||document_embedding||
+)
+```
+
+---
+
+# Duplicate Removal
+
+Some documents appear multiple times across different years.
+
+To avoid returning identical content multiple times, apply deduplication using chunk text:
+
+```python
+key = record["text"][:300]
+```
+
+Only unique chunks are returned.
+
+---
+
+# Question Answering Module
+
+File:
+
+```text
+src/chatbot/qa.py
+```
+
+Responsibilities:
+
+1. Call the retriever.
+2. Build a context from retrieved chunks.
+3. Create the Gemini prompt.
+4. Generate the answer.
+
+Prompt structure:
+
+```text
+You are a UNDP project assistant.
+
+Answer only using the provided context.
+
+Context:
+...
+
+Question:
+...
+```
+
+---
+
+# Test Script
+
+File:
+
+```text
+scripts/test_rag.py
+```
+
+Purpose:
+
+* Validate retrieval
+* Validate Gemini answer generation
+* Test the complete RAG pipeline locally
+
+Run:
+
+```powershell
+python -m scripts.test_rag
+```
+
+---
+
+# Example Question
+
+```text
+What digital initiatives are supported in Lebanon?
+```
+
+Example answer:
+
+```text
+Technical support is provided for digital solution design.
+```
+
+The answer is generated from retrieved document content rather than model knowledge.
+
+---
+
+# Verification
+
+Run:
+
+```powershell
+python -m scripts.test_rag
+```
+
+Expected output:
+
+```text
+QUESTION
+--------
+What digital initiatives are supported in Lebanon?
+
+ANSWER
+------
+...
+```
+
+To inspect retrieval results, temporarily print:
+
+```python
+chunks = retrieve(question)
+
+for chunk in chunks:
+    print(chunk["score"])
+    print(chunk["text"][:500])
+```
+
+---
+
+# Current Dataset
+
+```text
+PDFs: 12
+
+Chunk Files: 12
+
+Embedded Files: 6
+
+Total Chunks: 1162
+```
+
+Files with no extracted text were skipped during embedding.
+
+---
+
+# Deliverables
+
+After completing this step:
+
+* Retrieval pipeline implemented
+* Query embeddings generated with Gemini
+* Cosine similarity search implemented
+* Duplicate retrieval results removed
+* Gemini answer generation implemented
+* End-to-end RAG pipeline validated
+
+---
+
+# Next Step
+
+Proceed to:
+
+```text
+Step 10 — Build the Streamlit Chat Application
+```
+
+
+# Step 10 — Build the Streamlit Chat Application
+
+## Objective
+
+Build a web-based interface that allows users to interact with the Retrieval-Augmented Generation (RAG) pipeline.
+
+The application:
+
+1. Accepts user questions.
+2. Retrieves relevant document chunks.
+3. Generates answers using Gemini.
+4. Displays the generated answer.
+5. Displays the retrieved sources used to generate the answer.
+
+---
+
+# Architecture
+
+```text
+User
+  │
+  ▼
+Streamlit Web Application
+  │
+  ▼
+Question Answering Module
+  │
+  ▼
+Retriever
+  │
+  ▼
+Embeddings Stored in GCS
+  │
+  ▼
+Top K Chunks
+  │
+  ▼
+Gemini 2.5 Flash
+  │
+  ▼
+Answer + Sources
+```
+
+---
+
+# Project Structure
+
+The chatbot application is implemented in:
+
+```text
+src/
+├── chatbot/
+│   ├── app.py
+│   └── qa.py
+│
+├── retrieval/
+│   └── retriever.py
+│
+├── common/
+│   ├── settings.py
+│   └── gcs_utils.py
+```
+
+---
+
+# Streamlit Application
+
+File:
+
+```text
+src/chatbot/app.py
+```
+
+Responsibilities:
+
+* Render the user interface
+* Accept user questions
+* Call the question answering module
+* Display answers
+* Display retrieved sources
+
+---
+
+# Question Answering Module
+
+File:
+
+```text
+src/chatbot/qa.py
+```
+
+The `ask()` function:
+
+1. Retrieves relevant chunks.
+2. Builds context.
+3. Sends the context to Gemini.
+4. Returns:
+
+```python
+answer, chunks
+```
+
+This allows the application to display both the generated answer and the supporting sources.
+
+---
+
+# Source Display
+
+Each retrieved chunk is displayed with:
+
+* Similarity score
+* Page number
+* Source file
+* Retrieved text
+
+Example:
+
+```text
+Source 1 | Score: 0.6957
+
+Page Number: 24
+
+Source File:
+raw/year=2026/country=Lebanon/...
+
+Retrieved Text:
+...
+```
+
+This makes the generated answer traceable to the original documents.
+
+---
+
+# Run Locally
+
+From the project root:
+
+```powershell
+$env:PYTHONPATH="."
+streamlit run src/chatbot/app.py
+```
+
+---
+
+# Example Question
+
+```text
+What digital initiatives are supported in Lebanon?
+```
+
+Example answer:
+
+```text
+The LHSP 2.0 project provides technical support for digital solution design.
+```
+
+---
+
+# Example Source
+
+```text
+Source 1
+
+Score: 0.6908
+
+Technical support is provided for:
+
+- Product development
+- Digital solution design
+- Climate resilience
+- Recycling solutions
+```
+
+---
+
+# Verification
+
+Verify that:
+
+1. The Streamlit page loads successfully.
+2. Questions can be submitted.
+3. Answers are generated.
+4. Sources are displayed.
+5. Similarity scores are shown.
+6. Retrieved text matches the generated answer.
+
+---
+
+# Deliverables
+
+After completing this step:
+
+* Streamlit web application implemented
+* Question submission interface available
+* Gemini answer generation integrated
+* Source display implemented
+* Retrieval transparency enabled
+* End-to-end RAG application functional
+
+---
+
+# Current Workflow
+
+```text
+UNDP API
+      ↓
+PDF Documents
+      ↓
+Chunking
+      ↓
+Gemini Embeddings
+      ↓
+Embeddings Stored in GCS
+      ↓
+Retriever
+      ↓
+Top K Chunks
+      ↓
+Gemini 2.5 Flash
+      ↓
+Streamlit Interface
+      ↓
+Answer + Sources
+```
+
+---
+
+# Next Step
+
+Proceed to:
+
+```text
+Step 11 — Containerize and Deploy the Chatbot to Cloud Run
+```
+# Step 11 — Containerize and Deploy the Chatbot to Cloud Run
+
+## Objective
+
+Deploy the Streamlit-based UNDP RAG chatbot to Google Cloud Run.
+
+Project Information:
+
+```text
+Project Name: undp-project-documents
+Project ID: undp-project-documents
+Project Number: 1097805338474
+Region: northamerica-northeast1
+Bucket: undp-project-documents-llm-prod
+```
+
+---
+
+# 1. Verify Active Project
+
+```powershell
+gcloud config get-value project
+```
+
+Expected:
+
+```text
+undp-project-documents
+```
+
+If needed:
+
+```powershell
+gcloud config set project undp-project-documents
+```
+
+---
+
+# 2. Authenticate
+
+Login to Google Cloud:
+
+```powershell
+gcloud auth login
+```
+
+Configure Application Default Credentials:
+
+```powershell
+gcloud auth application-default login
+```
+
+Verify:
+
+```powershell
+gcloud auth list
+```
+
+---
+
+# 3. Enable Required APIs
+
+```powershell
+gcloud services enable storage.googleapis.com
+gcloud services enable run.googleapis.com
+gcloud services enable cloudbuild.googleapis.com
+gcloud services enable artifactregistry.googleapis.com
+gcloud services enable aiplatform.googleapis.com
+```
+
+---
+
+# 4. Configure IAM Permissions
+
+## Cloud Build Builder
+
+Required for Cloud Build to create and deploy containers.
+
+```powershell
+gcloud projects add-iam-policy-binding undp-project-documents ^
+  --member="serviceAccount:1097805338474-compute@developer.gserviceaccount.com" ^
+  --role="roles/cloudbuild.builds.builder"
+```
+
+---
+
+## Vertex AI Access
+
+Required for Gemini embedding generation and answer generation.
+
+```powershell
+gcloud projects add-iam-policy-binding undp-project-documents ^
+  --member="serviceAccount:1097805338474-compute@developer.gserviceaccount.com" ^
+  --role="roles/aiplatform.user"
+```
+
+---
+
+## Cloud Storage Access
+
+Required to read:
+
+```text
+raw/
+processed/
+embeddings/
+metadata/
+```
+
+inside the bucket.
+
+```powershell
+gcloud projects add-iam-policy-binding undp-project-documents ^
+  --member="serviceAccount:1097805338474-compute@developer.gserviceaccount.com" ^
+  --role="roles/storage.objectViewer"
+```
+
+---
+
+# 5. Create Dockerfile
+
+Create:
+
+```text
+Dockerfile
+```
+
+Add:
+
+```dockerfile
+FROM python:3.12-slim
+
+WORKDIR /app
+
+COPY . .
+
+RUN pip install uv
+
+RUN uv sync
+
+ENV PYTHONPATH=/app
+
+EXPOSE 8080
+
+CMD ["streamlit", "run", "src/chatbot/app.py", "--server.port=8080", "--server.address=0.0.0.0"]
+```
+
+---
+
+# 6. Verify Dependencies
+
+Run:
+
+```powershell
+uv sync
+```
+
+Update lock file:
+
+```powershell
+uv lock
+```
+
+Verify:
+
+```text
+uv.lock
+```
+
+exists in the project root.
+
+---
+
+# 7. Test Streamlit Locally
+
+Run:
+
+```powershell
+$env:PYTHONPATH="."
+streamlit run src/chatbot/app.py
+```
+
+Verify:
+
+* Application loads
+* Questions can be submitted
+* Answers are generated
+* Sources are displayed
+
+---
+
+# 8. Build Docker Image
+
+Build:
+
+```powershell
+docker build -t undp-chatbot .
+```
+
+Verify image:
+
+```powershell
+docker images
+```
+
+Run locally:
+
+```powershell
+docker run -p 8080:8080 undp-chatbot
+```
+
+Open:
+
+```text
+http://localhost:8080
+```
+
+Verify the chatbot works correctly.
+
+---
+
+# 9. Deploy to Cloud Run
+
+Deploy directly from source:
+
+```powershell
+gcloud run deploy undp-chatbot ^
+  --source . ^
+  --region northamerica-northeast1 ^
+  --allow-unauthenticated
+```
+
+Cloud Build will:
+
+1. Build the container image
+2. Store the image in Artifact Registry
+3. Deploy the service to Cloud Run
+
+---
+
+# 10. Verify Deployment
+
+List services:
+
+```powershell
+gcloud run services list --region northamerica-northeast1
+```
+
+Retrieve URL:
+
+```powershell
+gcloud run services describe undp-chatbot ^
+  --region northamerica-northeast1 ^
+  --format="value(status.url)"
+```
+
+Example:
+
+```text
+https://undp-chatbot-xxxxxxxxxx-nn.a.run.app
+```
+
+Open the URL and verify:
+
+* Application loads
+* Questions can be submitted
+* Sources are displayed
+* Gemini answers are generated
+
+---
+
+# Troubleshooting
+
+## Cloud Build Permission Error
+
+Run:
+
+```powershell
+gcloud projects add-iam-policy-binding undp-project-documents ^
+  --member="serviceAccount:1097805338474-compute@developer.gserviceaccount.com" ^
+  --role="roles/cloudbuild.builds.builder"
+```
+
+---
+
+## Vertex AI Permission Error
+
+Run:
+
+```powershell
+gcloud projects add-iam-policy-binding undp-project-documents ^
+  --member="serviceAccount:1097805338474-compute@developer.gserviceaccount.com" ^
+  --role="roles/aiplatform.user"
+```
+
+---
+
+## Storage Permission Error
+
+Run:
+
+```powershell
+gcloud projects add-iam-policy-binding undp-project-documents ^
+  --member="serviceAccount:1097805338474-compute@developer.gserviceaccount.com" ^
+  --role="roles/storage.objectViewer"
+```
+
+---
+
+## Import Errors
+
+Verify Dockerfile contains:
+
+```dockerfile
+ENV PYTHONPATH=/app
+```
+
+and all imports use:
+
+```python
+from src.chatbot.qa import ask
+```
+
+```python
+from src.retrieval.retriever import retrieve
+```
+
+```python
+from src.common.settings import settings
+```
+
+---
+
+# Deliverables
+
+After completing this step:
+
+* Docker image created
+* Cloud Build configured
+* Artifact Registry configured automatically
+* Cloud Run service deployed
+* Vertex AI access configured
+* Cloud Storage access configured
+* Public chatbot URL available
+
+---
+
+# Next Step
+
+Proceed to:
+
+```text
+Step 12 — Build the Cloud Composer Pipeline
+```
+
+The Composer workflow will orchestrate:
+
+1. Ingestion Job
+2. Chunking Job
+3. Embedding Job
+4. Cloud Run deployment updates
+
 

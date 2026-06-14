@@ -22,8 +22,9 @@ def build_context(chunks: list[dict]) -> str:
     return "\n\n".join(context_parts)
 
 
-def ask(question: str) -> str:
+def ask(question: str) -> tuple[str, list[dict]]:
     chunks = retrieve(question)
+
     print("\nRetrieved chunks:")
     print("=" * 80)
 
@@ -31,13 +32,15 @@ def ask(question: str) -> str:
         print(f"\nScore: {chunk['score']:.4f}")
         print(chunk["text"][:500])
 
-        context = build_context(chunks)
+    context = build_context(chunks)
 
     prompt = f"""
 You are a UNDP project assistant.
 
 Answer the question using only the context provided below.
 If the answer is not in the context, say that the documents do not provide enough information.
+
+When possible, cite the source number, for example [Source 1].
 
 Context:
 {context}
@@ -59,4 +62,4 @@ Answer:
         contents=prompt,
     )
 
-    return response.text
+    return response.text, chunks
