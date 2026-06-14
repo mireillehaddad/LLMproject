@@ -2022,15 +2022,17 @@ gcloud projects add-iam-policy-binding undp-project-documents ^
 
 ---
 
-# 5. Create Dockerfile
+# 5. Create Dockerfile for the Chatbot
 
-Create:
+Use the existing chatbot Dockerfile:
 
 ```text
-Dockerfile
+docker/Dockerfile.chatbot
 ```
 
-Add:
+Do not create a separate root `Dockerfile` yet.
+
+Update `docker/Dockerfile.chatbot` with:
 
 ```dockerfile
 FROM python:3.12-slim
@@ -2047,8 +2049,16 @@ ENV PYTHONPATH=/app
 
 EXPOSE 8080
 
-CMD ["streamlit", "run", "src/chatbot/app.py", "--server.port=8080", "--server.address=0.0.0.0"]
+CMD ["uv", "run", "streamlit", "run", "src/chatbot/app.py", "--server.port=8080", "--server.address=0.0.0.0"]
 ```
+
+The command uses:
+
+```text
+uv run streamlit
+```
+
+because `uv sync` installs project dependencies inside the project virtual environment. Calling `streamlit` directly can fail inside Docker.
 
 ---
 
@@ -2060,25 +2070,35 @@ Run:
 uv sync
 ```
 
-Update lock file:
+Update the lock file:
 
 ```powershell
 uv lock
 ```
 
-Verify:
+Verify that this file exists in the project root:
 
 ```text
 uv.lock
 ```
 
-exists in the project root.
+Required dependencies include:
+
+```text
+streamlit
+google-genai
+google-cloud-storage
+numpy
+python-dotenv
+requests
+pypdf
+```
 
 ---
 
-# 7. Test Streamlit Locally
+# 7. Test Streamlit Locally Without Docker
 
-Run:
+Run from the project root:
 
 ```powershell
 $env:PYTHONPATH="."
@@ -2094,24 +2114,44 @@ Verify:
 
 ---
 
-# 8. Build Docker Image
+# 8. Build Docker Image Locally
 
-Build:
+Build the chatbot image using the custom Dockerfile:
 
 ```powershell
-docker build -t undp-chatbot .
+docker build -f docker/Dockerfile.chatbot -t undp-chatbot .
 ```
 
-Verify image:
+Verify the image exists:
 
 ```powershell
 docker images
 ```
 
-Run locally:
+---
+
+# 9. Run Docker Locally With Google Credentials
+
+The chatbot needs access to:
+
+* Google Cloud Storage
+* Vertex AI Gemini
+
+When running locally inside Docker, mount your local Google Application Default Credentials.
+
+First make sure ADC exists locally:
 
 ```powershell
-docker run -p 8080:8080 undp-chatbot
+gcloud auth application-default login
+```
+
+Then run the container:
+
+```powershell
+docker run -p 8080:8080 `
+  -e GOOGLE_APPLICATION_CREDENTIALS=/gcloud/application_default_credentials.json `
+  -v "$env:APPDATA\gcloud:/gcloud" `
+  undp-chatbot
 ```
 
 Open:
@@ -2120,11 +2160,34 @@ Open:
 http://localhost:8080
 ```
 
-Verify the chatbot works correctly.
+Verify:
+
+* Application loads
+* Questions can be submitted
+* Answers are generated
+* Sources are displayed
 
 ---
 
-# 9. Deploy to Cloud Run
+# 10. Prepare for Cloud Run Deployment
+
+Cloud Run source deployment expects a `Dockerfile` in the project root.
+
+Copy the chatbot Dockerfile to the root:
+
+```powershell
+Copy-Item docker\Dockerfile.chatbot Dockerfile
+```
+
+Verify:
+
+```powershell
+dir Dockerfile
+```
+
+---
+
+# 11. Deploy to Cloud Run
 
 Deploy directly from source:
 
@@ -2143,15 +2206,15 @@ Cloud Build will:
 
 ---
 
-# 10. Verify Deployment
+# 12. Verify Deployment
 
-List services:
+List Cloud Run services:
 
 ```powershell
 gcloud run services list --region northamerica-northeast1
 ```
 
-Retrieve URL:
+Retrieve the service URL:
 
 ```powershell
 gcloud run services describe undp-chatbot ^
@@ -2159,22 +2222,81 @@ gcloud run services describe undp-chatbot ^
   --format="value(status.url)"
 ```
 
-Example:
+Open the URL in a browser.
 
-```text
-https://undp-chatbot-xxxxxxxxxx-nn.a.run.app
-```
-
-Open the URL and verify:
+Verify:
 
 * Application loads
 * Questions can be submitted
 * Sources are displayed
 * Gemini answers are generated
 
+without retrieving url I got this at end of deployment :
+
+(undp_pipeline_prod) PS C:\Users\mirei\OneDrive\Desktop\LLMproject\undp_pipeline_prod> gcloud run deploy undp-chatbot --source . --region northamerica-northeast1 --allow-unauthenticated
+Building using Dockerfile and deploying container to Cloud Run service [undp-chatbot] in project [undp-project-documents] region [northamerica-northeast1]
+OK Building and deploying... Done.                                                                                        
+  OK Validating configuration...                                                                                          
+  OK Uploading sources...                                                                                                 
+  OK Building Container... Logs are available at [ https://console.cloud.google.com/cloud-build/builds;region=northamerica
+  -northeast1/3e858d39-53d5-4a64-8842-e0de54a362cc?project=1097805338474 ].                                               
+  OK Creating Revision...                                                                                                 
+  OK Routing traffic...                                                                                                   
+  OK Setting IAM Policy...                                                                                                
+Done.                                                                                                                     
+Service [undp-chatbot] revision [undp-chatbot-00003-l6f] has been deployed and is serving 100 percent of traffic.
+Service URL: https://undp-chatbot-1097805338474.northamerica-northeast1.run.app
+(undp_pipeline_prod) PS C:\Users\mirei\OneDrive\Desktop\LLMproject\undp_pipeline_prod> 
+
+
 ---
 
 # Troubleshooting
+
+## Docker Cannot Find Streamlit
+
+Error:
+
+```text
+exec: "streamlit": executable file not found in $PATH
+```
+
+Fix:
+
+Use this command in `docker/Dockerfile.chatbot`:
+
+```dockerfile
+CMD ["uv", "run", "streamlit", "run", "src/chatbot/app.py", "--server.port=8080", "--server.address=0.0.0.0"]
+```
+
+Then rebuild:
+
+```powershell
+docker build -f docker/Dockerfile.chatbot -t undp-chatbot .
+```
+
+---
+
+## Docker Cannot Find Google Credentials
+
+Error:
+
+```text
+google.auth.exceptions.DefaultCredentialsError
+```
+
+Fix:
+
+Run the container with ADC mounted:
+
+```powershell
+docker run -p 8080:8080 `
+  -e GOOGLE_APPLICATION_CREDENTIALS=/gcloud/application_default_credentials.json `
+  -v "$env:APPDATA\gcloud:/gcloud" `
+  undp-chatbot
+```
+
+---
 
 ## Cloud Build Permission Error
 
@@ -2220,17 +2342,11 @@ Verify Dockerfile contains:
 ENV PYTHONPATH=/app
 ```
 
-and all imports use:
+and imports use:
 
 ```python
 from src.chatbot.qa import ask
-```
-
-```python
 from src.retrieval.retriever import retrieve
-```
-
-```python
 from src.common.settings import settings
 ```
 
@@ -2240,13 +2356,13 @@ from src.common.settings import settings
 
 After completing this step:
 
-* Docker image created
-* Cloud Build configured
-* Artifact Registry configured automatically
-* Cloud Run service deployed
-* Vertex AI access configured
-* Cloud Storage access configured
-* Public chatbot URL available
+* Chatbot Dockerfile updated
+* Docker image built locally
+* Docker container tested locally
+* Google credentials mounted for local Docker testing
+* Cloud Run deployment prepared
+* Public Cloud Run service deployed
+* Sources and answers verified in the deployed application
 
 ---
 
@@ -2257,12 +2373,5 @@ Proceed to:
 ```text
 Step 12 — Build the Cloud Composer Pipeline
 ```
-
-The Composer workflow will orchestrate:
-
-1. Ingestion Job
-2. Chunking Job
-3. Embedding Job
-4. Cloud Run deployment updates
 
 
