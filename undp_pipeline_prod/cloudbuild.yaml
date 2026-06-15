@@ -1,28 +1,28 @@
 steps:
   # Build and push chatbot image
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-f', 'docker/Dockerfile.chatbot', '-t', 'northamerica-northeast1-docker.pkg.dev/$PROJECT_ID/undp-pipeline/undp-chatbot:latest', '.']
+    args: ['build', '-f', 'undp_pipeline_prod/docker/Dockerfile.chatbot', '-t', 'northamerica-northeast1-docker.pkg.dev/$PROJECT_ID/undp-pipeline/undp-chatbot:latest', 'undp_pipeline_prod']
 
   - name: 'gcr.io/cloud-builders/docker'
     args: ['push', 'northamerica-northeast1-docker.pkg.dev/$PROJECT_ID/undp-pipeline/undp-chatbot:latest']
 
   # Build and push ingest image
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-f', 'docker/Dockerfile.ingest', '-t', 'northamerica-northeast1-docker.pkg.dev/$PROJECT_ID/undp-pipeline/undp-ingest:latest', '.']
+    args: ['build', '-f', 'undp_pipeline_prod/docker/Dockerfile.ingest', '-t', 'northamerica-northeast1-docker.pkg.dev/$PROJECT_ID/undp-pipeline/undp-ingest:latest', 'undp_pipeline_prod']
 
   - name: 'gcr.io/cloud-builders/docker'
     args: ['push', 'northamerica-northeast1-docker.pkg.dev/$PROJECT_ID/undp-pipeline/undp-ingest:latest']
 
   # Build and push chunk image
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-f', 'docker/Dockerfile.chunk', '-t', 'northamerica-northeast1-docker.pkg.dev/$PROJECT_ID/undp-pipeline/undp-chunk:latest', '.']
+    args: ['build', '-f', 'undp_pipeline_prod/docker/Dockerfile.chunk', '-t', 'northamerica-northeast1-docker.pkg.dev/$PROJECT_ID/undp-pipeline/undp-chunk:latest', 'undp_pipeline_prod']
 
   - name: 'gcr.io/cloud-builders/docker'
     args: ['push', 'northamerica-northeast1-docker.pkg.dev/$PROJECT_ID/undp-pipeline/undp-chunk:latest']
 
   # Build and push embed image
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-f', 'docker/Dockerfile.embed', '-t', 'northamerica-northeast1-docker.pkg.dev/$PROJECT_ID/undp-pipeline/undp-embed:latest', '.']
+    args: ['build', '-f', 'undp_pipeline_prod/docker/Dockerfile.embed', '-t', 'northamerica-northeast1-docker.pkg.dev/$PROJECT_ID/undp-pipeline/undp-embed:latest', 'undp_pipeline_prod']
 
   - name: 'gcr.io/cloud-builders/docker'
     args: ['push', 'northamerica-northeast1-docker.pkg.dev/$PROJECT_ID/undp-pipeline/undp-embed:latest']
