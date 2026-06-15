@@ -4707,3 +4707,194 @@ Updates jobs
 
 No manual deployment commands are required.
 https://undp-chatbot-1097805338474.northamerica-northeast1.run.app
+
+
+Configure CI/CD with Cloud Build
+Objective
+
+Automate the deployment of the UNDP RAG application using Cloud Build.
+
+Instead of manually running:
+
+docker build
+docker push
+gcloud run deploy
+
+Cloud Build automatically builds and deploys the application whenever code is pushed to GitHub.
+
+Architecture
+GitHub
+   ↓
+Cloud Build Trigger
+   ↓
+Build Docker Images
+   ↓
+Push Images to Artifact Registry
+   ↓
+Deploy Cloud Run Service
+   ↓
+Update Cloud Run Jobs
+Prerequisites
+
+The following resources must already exist:
+
+Google Cloud Project
+Artifact Registry Repository
+Cloud Run Service (undp-chatbot)
+Cloud Run Jobs
+undp-ingest-job
+undp-chunk-job
+undp-embed-job
+GitHub Repository
+Create Dockerfiles
+
+Create a dedicated Dockerfile for each pipeline component.
+
+Chatbot
+undp_pipeline_prod/docker/Dockerfile.chatbot
+Ingest
+undp_pipeline_prod/docker/Dockerfile.ingest
+Chunk
+undp_pipeline_prod/docker/Dockerfile.chunk
+Embed
+undp_pipeline_prod/docker/Dockerfile.embed
+Create Cloud Build Configuration
+
+Create:
+
+undp_pipeline_prod/cloudbuild.yaml
+
+This file defines the CI/CD pipeline.
+
+Cloud Build will:
+
+Build chatbot image
+Build ingest image
+Build chunk image
+Build embed image
+Push images to Artifact Registry
+Deploy Cloud Run service
+Update Cloud Run jobs
+Configure Logging
+
+Because a custom service account is used by the trigger, Cloud Build requires explicit logging configuration.
+
+Add:
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+at the bottom of cloudbuild.yaml.
+
+Connect GitHub Repository
+
+Open:
+
+Cloud Build
+→ Repositories
+→ Connect Repository
+
+Select:
+
+GitHub
+
+Authenticate and connect:
+
+mireillehaddad/LLMproject
+Create Cloud Build Trigger
+
+Open:
+
+Cloud Build
+→ Triggers
+→ Create Trigger
+
+Configure:
+
+General
+Name:
+undp-main-trigger
+
+Region:
+Global
+Event
+Push to a branch
+
+Branch:
+
+^main$
+Repository
+mireillehaddad/LLMproject
+Build Configuration
+Cloud Build configuration file
+
+Location:
+
+Repository
+
+Path:
+
+/undp_pipeline_prod/cloudbuild.yaml
+Service Account
+
+Use:
+
+1097805338474-compute@developer.gserviceaccount.com
+Fix Logging Permissions
+
+Grant Cloud Logging permissions:
+
+gcloud projects add-iam-policy-binding undp-project-documents `
+  --member="serviceAccount:1097805338474-compute@developer.gserviceaccount.com" `
+  --role="roles/logging.logWriter"
+Test the Pipeline
+
+Make a code change and push to GitHub:
+
+git add .
+git commit -m "test cloud build trigger"
+git push origin main
+Verify Build Execution
+
+Open:
+
+Cloud Build
+→ History
+
+A new build should start automatically.
+
+Expected result:
+
+SUCCESS
+Successful Deployment Flow
+
+When code is pushed to GitHub:
+
+GitHub
+   ↓
+Cloud Build Trigger
+   ↓
+Build Docker Images
+   ↓
+Push to Artifact Registry
+   ↓
+Deploy Cloud Run Service
+   ↓
+Update Cloud Run Jobs
+Result
+
+The project now uses automated CI/CD.
+
+Manual deployment commands are no longer required.
+
+Every push to the main branch automatically:
+
+Builds Docker images
+Pushes images to Artifact Registry
+Deploys the chatbot
+Updates ingestion job
+Updates chunking job
+Updates embedding job
+
+This provides a production-style deployment workflow for the UNDP RAG project.
+
