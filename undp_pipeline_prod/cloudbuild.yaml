@@ -84,3 +84,6 @@ images:
   - northamerica-northeast1-docker.pkg.dev/$PROJECT_ID/undp-pipeline/undp-ingest:latest
   - northamerica-northeast1-docker.pkg.dev/$PROJECT_ID/undp-pipeline/undp-chunk:latest
   - northamerica-northeast1-docker.pkg.dev/$PROJECT_ID/undp-pipeline/undp-embed:latest
+
+options:
+  logging: CLOUD_LOGGING_ONLY
