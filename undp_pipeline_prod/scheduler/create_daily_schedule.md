@@ -78,12 +78,3 @@ Verify:
 
 ---
 
-## Future Improvements
-
-* Weekly full refresh
-* Slack or email notification on failure
-* Automatic retry logic
-* CI/CD deployment with Cloud Build
-
-```
-```
