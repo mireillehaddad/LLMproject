@@ -5,7 +5,7 @@ from src.chatbot.qa import ask
 
 st.set_page_config(
     page_title="UNDP Project Document Chatbot",
-    page_icon="",
+    page_icon="📄",
     layout="wide",
 )
 
@@ -31,20 +31,21 @@ if st.button("Ask"):
         st.subheader("Answer")
         st.write(answer)
 
-        st.subheader("Sources")
+        if chunks:
+            st.subheader("Sources")
 
-        for i, chunk in enumerate(chunks, start=1):
-            with st.expander(
-                f"Source {i} | Score: {chunk['score']:.4f}"
-            ):
-                st.write(
-                    f"Page Number: {chunk.get('page_number', 'Unknown')}"
-                )
+            for i, chunk in enumerate(chunks, start=1):
+                with st.expander(
+                    f"Source {i} | Score: {chunk['score']:.4f}"
+                ):
+                    st.write(
+                        f"Page Number: {chunk.get('page_number', 'Unknown')}"
+                    )
 
-                st.write(
-                    f"Source File: {chunk.get('source_pdf_blob', 'Unknown')}"
-                )
+                    st.write(
+                        f"Source File: {chunk.get('source_pdf_blob', 'Unknown')}"
+                    )
 
-                st.code(
-                    chunk["text"][:1000]
-                )
+                    st.code(
+                        chunk["text"][:1000]
+                    )

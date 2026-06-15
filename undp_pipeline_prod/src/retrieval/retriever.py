@@ -55,6 +55,7 @@ def load_embeddings() -> list[dict]:
             record = json.loads(line)
 
             if "embedding" in record and record["embedding"]:
+                record["embedding_blob"] = blob
                 records.append(record)
 
     return records
