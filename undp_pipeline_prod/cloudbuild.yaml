@@ -1,0 +1,86 @@
+steps:
+  # Build and push chatbot image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-f', 'docker/Dockerfile.chatbot', '-t', 'northamerica-northeast1-docker.pkg.dev/$PROJECT_ID/undp-pipeline/undp-chatbot:latest', '.']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'northamerica-northeast1-docker.pkg.dev/$PROJECT_ID/undp-pipeline/undp-chatbot:latest']
+
+  # Build and push ingest image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-f', 'docker/Dockerfile.ingest', '-t', 'northamerica-northeast1-docker.pkg.dev/$PROJECT_ID/undp-pipeline/undp-ingest:latest', '.']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'northamerica-northeast1-docker.pkg.dev/$PROJECT_ID/undp-pipeline/undp-ingest:latest']
+
+  # Build and push chunk image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-f', 'docker/Dockerfile.chunk', '-t', 'northamerica-northeast1-docker.pkg.dev/$PROJECT_ID/undp-pipeline/undp-chunk:latest', '.']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'northamerica-northeast1-docker.pkg.dev/$PROJECT_ID/undp-pipeline/undp-chunk:latest']
+
+  # Build and push embed image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-f', 'docker/Dockerfile.embed', '-t', 'northamerica-northeast1-docker.pkg.dev/$PROJECT_ID/undp-pipeline/undp-embed:latest', '.']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'northamerica-northeast1-docker.pkg.dev/$PROJECT_ID/undp-pipeline/undp-embed:latest']
+
+  # Deploy chatbot Cloud Run service
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - undp-chatbot
+      - --image
+      - northamerica-northeast1-docker.pkg.dev/$PROJECT_ID/undp-pipeline/undp-chatbot:latest
+      - --region
+      - northamerica-northeast1
+      - --platform
+      - managed
+      - --allow-unauthenticated
+
+  # Update Cloud Run Jobs
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - run
+      - jobs
+      - update
+      - undp-ingest-job
+      - --image
+      - northamerica-northeast1-docker.pkg.dev/$PROJECT_ID/undp-pipeline/undp-ingest:latest
+      - --region
+      - northamerica-northeast1
+
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - run
+      - jobs
+      - update
+      - undp-chunk-job
+      - --image
+      - northamerica-northeast1-docker.pkg.dev/$PROJECT_ID/undp-pipeline/undp-chunk:latest
+      - --region
+      - northamerica-northeast1
+
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - run
+      - jobs
+      - update
+      - undp-embed-job
+      - --image
+      - northamerica-northeast1-docker.pkg.dev/$PROJECT_ID/undp-pipeline/undp-embed:latest
+      - --region
+      - northamerica-northeast1
+
+images:
+  - northamerica-northeast1-docker.pkg.dev/$PROJECT_ID/undp-pipeline/undp-chatbot:latest
+  - northamerica-northeast1-docker.pkg.dev/$PROJECT_ID/undp-pipeline/undp-ingest:latest
+  - northamerica-northeast1-docker.pkg.dev/$PROJECT_ID/undp-pipeline/undp-chunk:latest
+  - northamerica-northeast1-docker.pkg.dev/$PROJECT_ID/undp-pipeline/undp-embed:latest
