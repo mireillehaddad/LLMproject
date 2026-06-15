@@ -1,6 +1,7 @@
 import csv
 import io
 import re
+from collections import Counter
 from datetime import datetime, timezone
 
 import requests
@@ -37,11 +38,7 @@ def get_project_list(year: int) -> list[dict]:
     if not isinstance(projects, list):
         return []
 
-    return [
-        project
-        for project in projects
-        if isinstance(project, dict)
-    ]
+    return [project for project in projects if isinstance(project, dict)]
 
 
 def get_project_details(project_id: str) -> dict:
@@ -87,14 +84,17 @@ def download_pdf(url: str) -> bytes:
     return response.content
 
 
-def country_matches(project: dict) -> bool:
-    project_country = str(
+def get_project_country(project: dict) -> str:
+    return str(
         project.get("country")
         or project.get("country_name")
         or project.get("countryname")
-        or ""
+        or "unknown"
     ).strip()
 
+
+def country_matches(project: dict) -> bool:
+    project_country = get_project_country(project)
     return project_country in settings.countries
 
 
@@ -103,13 +103,17 @@ def run() -> None:
     skipped_count = 0
     metadata_rows: list[dict] = []
 
+    country_counter = Counter()
+
     for year in settings.years:
         print(f"Fetching UNDP projects for year={year}")
 
         projects = get_project_list(year)
 
         for project in projects:
-            
+            country = get_project_country(project)
+            country_counter[country] += 1
+
             if uploaded_count >= settings.max_new_pdfs:
                 break
 
@@ -125,13 +129,6 @@ def run() -> None:
 
             if not project_id:
                 continue
-
-            country = str(
-                project.get("country")
-                or project.get("country_name")
-                or project.get("countryname")
-                or "unknown"
-            ).strip()
 
             try:
                 details = get_project_details(project_id)
@@ -232,6 +229,11 @@ def run() -> None:
         upload_text(metadata_blob, output.getvalue())
 
         print(f"Uploaded metadata: gs://{settings.bucket_name}/{metadata_blob}")
+
+    print()
+    print("Top countries found:")
+    for country, count in country_counter.most_common(50):
+        print(f"{country}: {count}")
 
     print()
     print("Ingestion complete.")

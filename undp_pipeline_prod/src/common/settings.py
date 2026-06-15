@@ -27,7 +27,7 @@ class Settings:
         int(year.strip())
         for year in os.getenv(
             "YEARS",
-            "2024,2025,2026",
+            "2023,2024,2025,2026",
         ).split(",")
         if year.strip()
     )
@@ -36,7 +36,7 @@ class Settings:
         country.strip()
         for country in os.getenv(
             "COUNTRIES",
-            "Lebanon,Egypt",
+            "Lebanon,Egypt,Yemen,Iraq,Syria,Morocco,Libya,Prog for Palestinian People",
         ).split(",")
         if country.strip()
     )
@@ -44,7 +44,7 @@ class Settings:
     max_new_pdfs: int = int(
         os.getenv(
             "MAX_NEW_PDFS",
-            "50",
+            "150",
         )
     )
 
