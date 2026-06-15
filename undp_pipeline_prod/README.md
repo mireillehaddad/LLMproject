@@ -4411,3 +4411,299 @@ Cloud Run Jobs
 * Easier maintenance
 * Professional cloud architecture
 
+# Configure CI/CD with Cloud Build
+
+## Objective
+
+Automate deployment of the UNDP RAG pipeline and chatbot.
+
+Instead of manually running:
+
+```text
+docker build
+docker push
+gcloud run deploy
+gcloud run jobs update
+```
+
+Cloud Build will automatically deploy the project whenever code is pushed to GitHub.
+
+---
+
+# Prerequisites Verification
+
+Verify required APIs are enabled:
+
+```powershell
+gcloud services list --enabled
+```
+
+Required services:
+
+```text
+cloudbuild.googleapis.com
+artifactregistry.googleapis.com
+run.googleapis.com
+```
+
+Verified:
+
+```text
+Cloud Build API          ✓
+Artifact Registry API    ✓
+Cloud Run Admin API      ✓
+```
+
+---
+
+# Verify Artifact Registry
+
+List repositories:
+
+```powershell
+gcloud artifacts repositories list
+```
+
+Output:
+
+```text
+cloud-run-source-deploy
+undp-pipeline
+```
+
+Repository used for CI/CD:
+
+```text
+undp-pipeline
+```
+
+Region:
+
+```text
+northamerica-northeast1
+```
+
+---
+
+# Verify Dockerfiles
+
+Confirm Dockerfiles exist:
+
+```powershell
+dir docker
+```
+
+Expected:
+
+```text
+Dockerfile.chatbot
+Dockerfile.ingest
+Dockerfile.chunk
+Dockerfile.embed
+```
+
+Verified:
+
+```text
+Dockerfile.chatbot ✓
+Dockerfile.ingest  ✓
+Dockerfile.chunk   ✓
+Dockerfile.embed   ✓
+```
+
+---
+
+# Create Cloud Build Configuration
+
+Create:
+
+```text
+cloudbuild.yaml
+```
+
+Location:
+
+```text
+undp_pipeline_prod/
+├── cloudbuild.yaml
+├── docker/
+├── src/
+├── pyproject.toml
+└── uv.lock
+```
+
+---
+
+# Cloud Build Pipeline
+
+The pipeline performs the following actions:
+
+```text
+Build chatbot image
+    ↓
+Push chatbot image
+
+Build ingest image
+    ↓
+Push ingest image
+
+Build chunk image
+    ↓
+Push chunk image
+
+Build embed image
+    ↓
+Push embed image
+
+Deploy Cloud Run chatbot
+
+Update Cloud Run Jobs:
+    • undp-ingest-job
+    • undp-chunk-job
+    • undp-embed-job
+```
+
+---
+
+# Artifact Registry Image Paths
+
+```text
+northamerica-northeast1-docker.pkg.dev/$PROJECT_ID/undp-pipeline/undp-chatbot:latest
+
+northamerica-northeast1-docker.pkg.dev/$PROJECT_ID/undp-pipeline/undp-ingest:latest
+
+northamerica-northeast1-docker.pkg.dev/$PROJECT_ID/undp-pipeline/undp-chunk:latest
+
+northamerica-northeast1-docker.pkg.dev/$PROJECT_ID/undp-pipeline/undp-embed:latest
+```
+
+---
+
+# Commit Cloud Build Configuration
+
+Check repository status:
+
+```powershell
+git status
+```
+
+Add configuration file:
+
+```powershell
+git add cloudbuild.yaml
+```
+
+Create commit:
+
+```powershell
+git commit -m "Add Cloud Build CI/CD pipeline"
+```
+
+Verify:
+
+```powershell
+git status
+```
+
+Output:
+
+```text
+Your branch is ahead of 'origin/main' by 1 commit
+```
+
+This confirms the CI/CD configuration is committed locally.
+
+---
+
+# Push to GitHub
+
+Publish the commit:
+
+```powershell
+git push
+```
+
+This uploads the Cloud Build configuration to GitHub.
+
+---
+
+# Create Cloud Build Trigger
+
+Open:
+
+```text
+Google Cloud Console
+→ Cloud Build
+→ Triggers
+→ Create Trigger
+```
+
+Configuration:
+
+```text
+Name:
+undp-main-trigger
+
+Event:
+Push to a branch
+
+Source:
+GitHub
+
+Branch:
+^main$
+
+Configuration:
+Cloud Build configuration file
+
+Path:
+cloudbuild.yaml
+```
+
+Save the trigger.
+
+---
+
+# Final CI/CD Workflow
+
+```text
+Developer pushes code
+        ↓
+GitHub
+        ↓
+Cloud Build Trigger
+        ↓
+cloudbuild.yaml
+        ↓
+Build Docker Images
+        ↓
+Push Images to Artifact Registry
+        ↓
+Deploy Cloud Run Chatbot
+        ↓
+Update Cloud Run Jobs
+```
+
+---
+
+# Daily Deployment Workflow
+
+After CI/CD is configured, deployments become:
+
+```powershell
+git add .
+git commit -m "New feature"
+git push
+```
+
+Cloud Build automatically:
+
+```text
+Builds images
+Pushes images
+Deploys chatbot
+Updates jobs
+```
+
+No manual deployment commands are required.
+https://undp-chatbot-1097805338474.northamerica-northeast1.run.app
