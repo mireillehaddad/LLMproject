@@ -4002,3 +4002,412 @@ This completes the DevOps automation layer for the UNDP production pipeline.
 
 
 
+
+# Cloud Monitoring Email Notifications for Cloud Run Jobs
+
+## Purpose
+
+Configure Google Cloud Monitoring to send an email whenever a Cloud Run Job execution fails.
+
+This provides operational monitoring for the UNDP RAG pipeline and helps detect failures in:
+
+* `undp-ingest-job`
+* `undp-chunk-job`
+* `undp-embed-job`
+
+---
+
+# Step 1 — Create an Email Notification Channel
+
+Open:
+
+```text
+Google Cloud Console
+→ Monitoring
+→ Alerting
+→ Edit Notification Channels
+```
+
+Under **Email**, click:
+
+```text
+Add New
+```
+
+Enter:
+
+```text
+Email Address: mireillewazen@gmail.com
+Display Name: UNDP Pipeline Alerts
+```
+
+Click:
+
+```text
+Save
+```
+
+---
+
+# Step 2 — Verify Email Address
+
+Google sends a verification email.
+
+Open the email and click:
+
+```text
+Verify Email Address
+```
+
+The notification channel must be verified before alerts can be delivered.
+
+---
+
+# Step 3 — Create Alert Policy
+
+Open:
+
+```text
+Google Cloud Console
+→ Monitoring
+→ Alerting
+→ Create Policy
+```
+
+---
+
+# Step 4 — Select Metric
+
+Click:
+
+```text
+Select a Metric
+```
+
+Search:
+
+```text
+Cloud Run Job
+```
+
+Choose:
+
+```text
+Cloud Run Job
+→ Job
+→ Completed exit result and task attempts
+```
+
+Click:
+
+```text
+Apply
+```
+
+---
+
+# Step 5 — Add Failure Filter
+
+Under **Add Filters**, create:
+
+```text
+Filter: result
+Comparator: !=
+Value: succeeded
+```
+
+This ensures the alert only evaluates failed executions.
+
+Click:
+
+```text
+Done
+```
+
+---
+
+# Step 6 — Configure Trigger
+
+Open:
+
+```text
+Configure Trigger
+```
+
+Set:
+
+```text
+Alert Trigger:
+Any time series violates
+```
+
+```text
+Threshold Position:
+Above threshold
+```
+
+```text
+Threshold Value:
+0
+```
+
+Condition Name:
+
+```text
+UNDP Cloud Run Job Failure
+```
+
+Click:
+
+```text
+Next
+```
+
+---
+
+# Step 7 — Configure Notifications
+
+Under **Notification Channels**, select:
+
+```text
+UNDP Pipeline Alerts
+```
+
+Policy Name:
+
+```text
+UNDP Cloud Run Job Failure Alert
+```
+
+Optional:
+
+```text
+Severity: Critical
+```
+
+Click:
+
+```text
+Next
+```
+
+---
+
+# Step 8 — Review and Create
+
+Review the configuration.
+
+Click:
+
+```text
+Create Policy
+```
+
+---
+
+# Result
+
+Whenever a Cloud Run Job execution fails, Google Cloud Monitoring will:
+
+1. Create an incident
+2. Trigger the alert policy
+3. Send an email notification
+4. Allow rapid investigation of the failed job
+
+This provides monitoring coverage for the entire UNDP document processing pipeline.
+
+---
+
+# Monitored Jobs
+
+```text
+undp-ingest-job
+undp-chunk-job
+undp-embed-job
+```
+
+---
+
+# Example Failure Flow
+
+```text
+Cloud Run Job Fails
+        ↓
+Monitoring Metric Updated
+        ↓
+Alert Condition Triggered
+        ↓
+Incident Created
+        ↓
+Email Sent
+        ↓
+Investigation Begins
+```
+
+---
+
+# Recommended Future Enhancements
+
+* Slack notifications
+* Google Chat notifications
+* PagerDuty integration
+* Cloud Composer DAG failure alerts
+* Cloud Workflow execution failure alerts
+* Cloud Build deployment failure alerts
+
+
+
+## # CI/CD Deployment Overview
+
+## Goal
+
+Automatically deploy the UNDP RAG project whenever code is pushed to GitHub.
+
+---
+
+## Current Process (Manual)
+
+```text
+Code Change
+    ↓
+docker build
+    ↓
+docker push
+    ↓
+gcloud run deploy
+    ↓
+gcloud run jobs deploy
+```
+
+---
+
+## Future Process (CI/CD)
+
+```text
+Git Push
+    ↓
+Cloud Build Trigger
+    ↓
+Build Docker Images
+    ↓
+Push Images to Artifact Registry
+    ↓
+Deploy Cloud Run Service
+    ↓
+Deploy Cloud Run Jobs
+```
+
+---
+
+## Components
+
+### Source Control
+
+```text
+GitHub Repository
+```
+
+### CI/CD Engine
+
+```text
+Google Cloud Build
+```
+
+### Container Registry
+
+```text
+Artifact Registry
+```
+
+### Deployment Targets
+
+```text
+undp-chatbot
+undp-ingest-job
+undp-chunk-job
+undp-embed-job
+```
+
+---
+
+## Required Files
+
+```text
+cloudbuild.yaml
+
+docker/
+├── Dockerfile.chatbot
+├── Dockerfile.ingest
+├── Dockerfile.chunk
+└── Dockerfile.embed
+```
+
+---
+
+## CI/CD Implementation Steps
+
+### Step 1
+
+Create Dockerfiles for all services and jobs.
+
+### Step 2
+
+Create Artifact Registry repository.
+
+### Step 3
+
+Create `cloudbuild.yaml`.
+
+### Step 4
+
+Configure Cloud Build permissions.
+
+### Step 5
+
+Create GitHub → Cloud Build trigger.
+
+### Step 6
+
+Push code to GitHub.
+
+### Step 7
+
+Cloud Build automatically:
+
+* Builds images
+* Pushes images to Artifact Registry
+* Deploys Cloud Run service
+* Deploys Cloud Run Jobs
+
+---
+
+## Final Architecture
+
+```text
+GitHub
+    ↓
+Cloud Build Trigger
+    ↓
+Cloud Build
+    ↓
+Artifact Registry
+    ↓
+Cloud Run Service (Chatbot)
+    ↓
+Cloud Run Jobs
+        ├── undp-ingest-job
+        ├── undp-chunk-job
+        └── undp-embed-job
+```
+
+---
+
+## Benefits
+
+* No manual deployments
+* Faster releases
+* Consistent deployments
+* Production-ready workflow
+* Easier maintenance
+* Professional cloud architecture
+
