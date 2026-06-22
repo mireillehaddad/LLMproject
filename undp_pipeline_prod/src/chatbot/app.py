@@ -50,6 +50,19 @@ if st.button("Ask"):
                         chunk["text"][:1000]
                     )
 
+
+
+
+st.markdown("---")
+st.subheader("Example Questions")
+
+st.markdown("""
+- What projects are currently active in Lebanon?
+- Which UNDP projects focus on climate change?
+- What is the budget of a specific project?
+- What outcomes are expected from a project?
+- Which stakeholders are involved in a project?
+""")
 st.markdown("---")
 
 st.header("About This Project")
@@ -66,21 +79,17 @@ Finding specific information across hundreds of pages of project documents is di
 
 st.subheader("Solution")
 
+
 st.markdown("""
-This project builds a **Retrieval-Augmented Generation (RAG) chatbot** that allows users to ask questions about UNDP project documents and receive accurate answers grounded in the source documents.
+This project implements a **fully automated Retrieval-Augmented Generation (RAG) pipeline** on Google Cloud Platform for querying UNDP project documents.
 
-The UNDP project documents are used as the knowledge base of the chatbot.
+Python ingestion scripts connect to the Open UNDP API to retrieve project metadata and download PDF documents, which are stored in Google Cloud Storage. The documents are processed using custom Python pipelines that extract text, split documents into overlapping chunks, and generate vector embeddings using Vertex AI Gemini Embeddings. These embeddings enable semantic search across the document collection.
 
-The system automatically:
+When a user submits a question, the application generates an embedding for the query, performs vector similarity search to retrieve the most relevant document chunks, and provides the retrieved context to Gemini for answer generation. This approach helps ensure that responses are grounded in the source documents rather than relying solely on the language model's knowledge.
 
-1. Ingests UNDP project documents using the Open UNDP API.
-2. Downloads and processes PDF documents.
-3. Splits documents into chunks.
-4. Creates vector embeddings for semantic search.
-5. Retrieves the most relevant document chunks for a user query.
-6. Uses Gemini to generate answers based on the retrieved context.
-7. Provides a web interface built with Streamlit and deployed on Google Cloud Run.
+The solution includes a Streamlit chatbot deployed as a serverless application on Cloud Run. The data pipeline is automated using Cloud Run Jobs for ingestion, chunking, and embedding generation, orchestrated through Cloud Workflows and triggered on a schedule by Cloud Scheduler. CI/CD is implemented with GitHub, Cloud Build, Docker, and Artifact Registry to automate image builds, deployments, and application updates.
 """)
+
 
 st.subheader("Data Source")
 
@@ -90,62 +99,5 @@ Open UNDP API:
 [Open UNDP API Documentation](https://api.open.undp.org/api_documentation/api#!/default/individual_project_data)
 """)
 
-st.subheader("Architecture")
 
-st.code("""
-Open UNDP API
-       │
-       ▼
-PDF Documents
-       │
-       ▼
-Document Processing
-       │
-       ▼
-Chunking
-       │
-       ▼
-Embeddings Generation
-       │
-       ▼
-Vector Search
-       │
-       ▼
-Relevant Context Retrieval
-       │
-       ▼
-Gemini
-       │
-       ▼
-Streamlit Web Application
-""")
 
-st.subheader("Web Application")
-
-st.markdown("""
-The chatbot is available at:
-
-[UNDP Chatbot Web App](https://undp-chatbot-1097805338474.northamerica-northeast1.run.app/)
-""")
-
-st.subheader("Features")
-
-st.markdown("""
-- Automatic ingestion of UNDP project documents
-- PDF processing and chunking
-- Semantic search using embeddings
-- Retrieval-Augmented Generation (RAG)
-- Gemini-powered question answering
-- Streamlit user interface
-- Deployment on Google Cloud Run
-""")
-
-st.subheader("Example Questions")
-
-st.markdown("""
-- What projects are currently active in Lebanon?
-- Which UNDP projects focus on climate change?
-- What is the budget of a specific project?
-- What outcomes are expected from a project?
-- Which stakeholders are involved in a project?
-""")
