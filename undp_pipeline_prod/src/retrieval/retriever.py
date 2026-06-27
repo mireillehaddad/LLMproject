@@ -1,3 +1,4 @@
+from functools import lru_cache
 import json
 
 import numpy as np
@@ -11,17 +12,7 @@ from src.common.settings import settings
 TOP_K = 5
 
 
-def cosine_similarity(a: list[float], b: list[float]) -> float:
-    a_array = np.array(a)
-    b_array = np.array(b)
-
-    return float(
-        np.dot(a_array, b_array)
-        / (np.linalg.norm(a_array) * np.linalg.norm(b_array))
-    )
-
-
-def embed_query(client: genai.Client, query: str) -> list[float]:
+def embed_query(client: genai.Client, query: str) -> np.ndarray:
     response = client.models.embed_content(
         model=settings.embedding_model,
         contents=query,
@@ -31,11 +22,13 @@ def embed_query(client: genai.Client, query: str) -> list[float]:
         ),
     )
 
-    return response.embeddings[0].values
+    return np.array(response.embeddings[0].values, dtype=np.float32)
 
 
-def load_embeddings() -> list[dict]:
+@lru_cache(maxsize=1)
+def load_embedding_index():
     records = []
+    vectors = []
 
     embedding_blobs = [
         blob
@@ -47,18 +40,22 @@ def load_embeddings() -> list[dict]:
         text = download_text(blob)
 
         for line in text.splitlines():
-            line = line.strip()
-
-            if not line:
+            if not line.strip():
                 continue
 
             record = json.loads(line)
 
-            if "embedding" in record and record["embedding"]:
+            if record.get("embedding"):
                 record["embedding_blob"] = blob
                 records.append(record)
+                vectors.append(record["embedding"])
 
-    return records
+    matrix = np.array(vectors, dtype=np.float32)
+
+    # Normalize once
+    matrix = matrix / np.linalg.norm(matrix, axis=1, keepdims=True)
+
+    return records, matrix
 
 
 def retrieve(question: str, top_k: int = TOP_K) -> list[dict]:
@@ -69,40 +66,32 @@ def retrieve(question: str, top_k: int = TOP_K) -> list[dict]:
     )
 
     query_embedding = embed_query(client, question)
+    query_embedding = query_embedding / np.linalg.norm(query_embedding)
 
-    records = load_embeddings()
+    records, matrix = load_embedding_index()
 
-    scored_records = []
+    scores = matrix @ query_embedding
 
-    for record in records:
-        score = cosine_similarity(
-            query_embedding,
-            record["embedding"],
-        )
-
-        scored_records.append(
-            {
-                **record,
-                "score": score,
-            }
-        )
-
-    scored_records.sort(
-        key=lambda record: record["score"],
-        reverse=True,
-    )
+    ranked_indices = np.argsort(scores)[::-1]
 
     unique_records = []
     seen = set()
 
-    for record in scored_records:
+    for idx in ranked_indices:
+        record = records[idx]
         key = record.get("text", "")[:300]
 
         if key in seen:
             continue
 
         seen.add(key)
-        unique_records.append(record)
+
+        unique_records.append(
+            {
+                **record,
+                "score": float(scores[idx]),
+            }
+        )
 
         if len(unique_records) >= top_k:
             break

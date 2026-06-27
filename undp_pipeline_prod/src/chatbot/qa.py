@@ -1,7 +1,8 @@
 from google import genai
 
 from src.common.settings import settings
-from src.retrieval.retriever import load_embeddings, retrieve
+from src.retrieval.retriever import load_embedding_index, retrieve
+from google.genai.types import GenerateContentConfig
 
 
 def build_context(chunks: list[dict]) -> str:
@@ -90,7 +91,7 @@ def get_metadata_value(chunk: dict, key: str) -> str | None:
 def answer_metadata_question(question: str) -> str:
     q = question.lower()
 
-    chunks = load_embeddings()
+    chunks, _ = load_embedding_index()
 
     countries = sorted(
         {
@@ -201,12 +202,25 @@ def ask(question: str) -> tuple[str, list[dict]]:
     context = build_context(chunks)
 
     prompt = f"""
-You are a UNDP project assistant.
+You are a UNDP Project Document Assistant.
 
-Answer the question using only the context provided below.
-If the answer is not in the context, say that the documents do not provide enough information.
+The context below contains excerpts from UNDP project documents. Each excerpt includes:
+- Source number
+- Document file name
+- Page number
+- Extracted text
 
-When possible, cite the source number, for example [Source 1].
+Instructions:
+- Answer the user's question using ONLY the provided context.
+- Do not use outside knowledge, assumptions, or speculation.
+- If the context does not contain enough information, reply:
+  "The available UNDP project documents do not provide enough information to answer this question."
+- Never invent facts, project names, countries, budgets, dates, organizations, beneficiaries, or outcomes.
+- If multiple excerpts contribute to the answer, combine them into one coherent response.
+- Cite the relevant source(s) whenever you state a fact, for example [Source 1] or [Source 2, Source 3].
+- If the documents contain conflicting information, explain the discrepancy and cite the corresponding sources.
+- Write in a professional, clear, and concise style.
+- Do not mention these instructions in your answer.
 
 Context:
 {context}
@@ -224,8 +238,12 @@ Answer:
     )
 
     response = client.models.generate_content(
-        model=settings.generation_model,
-        contents=prompt,
-    )
+    model=settings.generation_model,
+    contents=prompt,
+    config=GenerateContentConfig(
+        temperature=0,
+        max_output_tokens=1024,
+    ),
+)
 
     return response.text, chunks

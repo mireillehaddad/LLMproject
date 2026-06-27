@@ -4898,3 +4898,9 @@ Updates embedding job
 
 This provides a production-style deployment workflow for the UNDP RAG project.
 
+##  ADD OCR text reading update in chunk the script run_chunk.py
+
+
+
+$env:PYTHONPATH="."
+uv run streamlit run src/chatbot/app.py
