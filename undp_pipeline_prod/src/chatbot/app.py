@@ -118,6 +118,3 @@ Open UNDP API:
 
 [Open UNDP API Documentation](https://api.open.undp.org/api_documentation/api#!/default/individual_project_data)
 """)
-
-
-

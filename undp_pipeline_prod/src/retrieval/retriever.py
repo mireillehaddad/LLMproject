@@ -59,8 +59,7 @@ def retrieve(question: str, top_k: int = TOP_K) -> list[dict]:
         'embedding',
         (SELECT @query_embedding AS embedding),
         top_k => @search_top_k,
-        distance_type => 'COSINE',
-        options => '{{"use_brute_force": true}}'
+        distance_type => 'COSINE'
     )
     """
 
@@ -107,3 +106,21 @@ def retrieve(question: str, top_k: int = TOP_K) -> list[dict]:
             break
 
     return results
+
+if __name__ == "__main__":
+    test_question = "What projects improve access to clean water?"
+
+    print("Running retrieval test...")
+    results = retrieve(test_question, top_k=5)
+
+    print(f"Results found: {len(results)}")
+
+    for index, result in enumerate(results, start=1):
+        print()
+        print(f"Result {index}")
+        print(f"Score: {result.get('score', 0):.4f}")
+        print(f"Country: {result.get('country')}")
+        print(f"Year: {result.get('year')}")
+        print(f"Project ID: {result.get('project_id')}")
+        print(f"Page: {result.get('page_number')}")
+        print(result.get("text", "")[:500])

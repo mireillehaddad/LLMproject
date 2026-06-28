@@ -6,6 +6,14 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+def parse_csv(value: str) -> tuple[str, ...]:
+    return tuple(
+        item.strip()
+        for item in value.split(",")
+        if item.strip()
+    )
+
+
 @dataclass(frozen=True)
 class Settings:
     project_id: str = os.getenv(
@@ -32,13 +40,18 @@ class Settings:
         if year.strip()
     )
 
-    countries: tuple[str, ...] = tuple(
-        country.strip()
-        for country in os.getenv(
+    countries: tuple[str, ...] = parse_csv(
+        os.getenv(
             "COUNTRIES",
             "Lebanon,Egypt,Yemen,Iraq,Syria,Morocco,Libya,Prog for Palestinian People",
-        ).split(",")
-        if country.strip()
+        )
+    )
+
+    document_keywords: tuple[str, ...] = parse_csv(
+        os.getenv(
+            "DOCUMENT_KEYWORDS",
+            "project document,prodoc,amendment",
+        )
     )
 
     max_new_pdfs: int = int(

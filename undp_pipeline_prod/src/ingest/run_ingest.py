@@ -13,6 +13,9 @@ from src.common.settings import settings
 UNDP_PROJECT_LIST_URL = "https://api.open.undp.org/api/project_list/?year={year}"
 UNDP_PROJECT_DETAILS_URL = "https://api.open.undp.org/api/projects/{project_id}.json"
 
+KEEP_CATEGORY = "A02"
+KEEP_CATEGORY_NAME = "Project Document"
+
 
 def safe_filename(text: str) -> str:
     text = text.strip()
@@ -22,9 +25,10 @@ def safe_filename(text: str) -> str:
 
 
 def get_project_list(year: int) -> list[dict]:
-    url = UNDP_PROJECT_LIST_URL.format(year=year)
-
-    response = requests.get(url, timeout=60)
+    response = requests.get(
+        UNDP_PROJECT_LIST_URL.format(year=year),
+        timeout=60,
+    )
     response.raise_for_status()
 
     data = response.json()
@@ -35,18 +39,15 @@ def get_project_list(year: int) -> list[dict]:
     else:
         projects = projects_data
 
-    if not isinstance(projects, list):
-        return []
-
-    return [project for project in projects if isinstance(project, dict)]
+    return projects if isinstance(projects, list) else []
 
 
 def get_project_details(project_id: str) -> dict:
-    url = UNDP_PROJECT_DETAILS_URL.format(project_id=project_id)
-
-    response = requests.get(url, timeout=60)
+    response = requests.get(
+        UNDP_PROJECT_DETAILS_URL.format(project_id=project_id),
+        timeout=60,
+    )
     response.raise_for_status()
-
     return response.json()
 
 
@@ -56,31 +57,26 @@ def extract_documents(project_details: dict) -> list[dict]:
     if isinstance(documents, dict):
         documents = documents.get("data", [])
 
-    if not isinstance(documents, list):
-        return []
-
-    return documents
+    return documents if isinstance(documents, list) else []
 
 
 def get_pdf_url(document: dict) -> str | None:
     for key in ["url", "download_url", "document_url", "file_url"]:
         value = document.get(key)
 
-        if value and str(value).lower().endswith(".pdf"):
+        if value and ".pdf" in str(value).lower():
             return str(value)
-
-    value = document.get("url")
-
-    if value and ".pdf" in str(value).lower():
-        return str(value)
 
     return None
 
 
 def download_pdf(url: str) -> bytes:
-    response = requests.get(url, timeout=120)
+    response = requests.get(
+        url,
+        timeout=(15, 120),
+        headers={"User-Agent": "Mozilla/5.0"},
+    )
     response.raise_for_status()
-
     return response.content
 
 
@@ -94,16 +90,70 @@ def get_project_country(project: dict) -> str:
 
 
 def country_matches(project: dict) -> bool:
-    project_country = get_project_country(project)
-    return project_country in settings.countries
+    return get_project_country(project) in settings.countries
+
+
+def get_project_id(project: dict) -> str:
+    return str(
+        project.get("project_id")
+        or project.get("id")
+        or project.get("projectid")
+        or ""
+    ).strip()
+
+
+def get_document_title(document: dict) -> str:
+    return str(
+        document.get("title")
+        or document.get("name")
+        or document.get("document_name")
+        or "document"
+    ).strip()
+
+
+def is_project_document(document: dict) -> bool:
+    category = str(document.get("category") or "").strip()
+    category_name = str(document.get("category_name") or "").strip()
+
+    return category == KEEP_CATEGORY or category_name == KEEP_CATEGORY_NAME
+
+
+def is_probably_english(title: str, pdf_url: str) -> bool:
+    text = f"{title} {pdf_url}".lower()
+
+    non_english_markers = (
+        "arabic",
+        "arabe",
+        "عربي",
+        "_ar",
+        "-ar",
+        "/ar/",
+        "french",
+        "français",
+        "francais",
+        "_fr",
+        "-fr",
+        "/fr/",
+        "spanish",
+        "español",
+        "espanol",
+        "_es",
+        "-es",
+        "/es/",
+    )
+
+    return not any(marker in text for marker in non_english_markers)
 
 
 def run() -> None:
     uploaded_count = 0
     skipped_count = 0
+    skipped_category_count = 0
+    skipped_language_count = 0
     metadata_rows: list[dict] = []
 
     country_counter = Counter()
+    category_counter = Counter()
 
     for year in settings.years:
         print(f"Fetching UNDP projects for year={year}")
@@ -120,12 +170,7 @@ def run() -> None:
             if not country_matches(project):
                 continue
 
-            project_id = str(
-                project.get("project_id")
-                or project.get("id")
-                or project.get("projectid")
-                or ""
-            ).strip()
+            project_id = get_project_id(project)
 
             if not project_id:
                 continue
@@ -142,14 +187,14 @@ def run() -> None:
                 if uploaded_count >= settings.max_new_pdfs:
                     break
 
-                title = str(
-                    document.get("title")
-                    or document.get("name")
-                    or document.get("document_name")
-                    or "document"
-                ).strip()
+                title = get_document_title(document)
 
-                if not title.lower().startswith("project document"):
+                category = str(document.get("category") or "unknown").strip()
+                category_name = str(document.get("category_name") or "unknown").strip()
+                category_counter[(category, category_name)] += 1
+
+                if not is_project_document(document):
+                    skipped_category_count += 1
                     continue
 
                 pdf_url = get_pdf_url(document)
@@ -157,11 +202,16 @@ def run() -> None:
                 if not pdf_url:
                     continue
 
+                if not is_probably_english(title, pdf_url):
+                    skipped_language_count += 1
+                    print(f"Skipping non-English document: {title}")
+                    continue
+
                 document_id = str(
                     document.get("id")
                     or document.get("document_id")
                     or safe_filename(title)
-                )
+                ).strip()
 
                 file_name = f"{document_id}_{safe_filename(title)}.pdf"
 
@@ -175,10 +225,7 @@ def run() -> None:
 
                 if blob_exists(blob_name):
                     skipped_count += 1
-                    print(
-                        f"Skipped existing PDF: "
-                        f"gs://{settings.bucket_name}/{blob_name}"
-                    )
+                    print(f"Skipped existing PDF: gs://{settings.bucket_name}/{blob_name}")
                     continue
 
                 try:
@@ -203,6 +250,8 @@ def run() -> None:
                             "project_id": project_id,
                             "document_id": document_id,
                             "title": title,
+                            "category": category,
+                            "category_name": category_name,
                             "pdf_url": pdf_url,
                             "gcs_path": f"gs://{settings.bucket_name}/{blob_name}",
                             "uploaded_at": datetime.now(timezone.utc).isoformat(),
@@ -227,8 +276,12 @@ def run() -> None:
         metadata_blob = f"{settings.metadata_prefix}/ingest_metadata_{timestamp}.csv"
 
         upload_text(metadata_blob, output.getvalue())
-
         print(f"Uploaded metadata: gs://{settings.bucket_name}/{metadata_blob}")
+
+    print()
+    print("Document categories seen:")
+    for (category, category_name), count in category_counter.most_common():
+        print(f"{count:>4} | {category} | {category_name}")
 
     print()
     print("Top countries found:")
@@ -239,6 +292,8 @@ def run() -> None:
     print("Ingestion complete.")
     print(f"Uploaded new PDFs: {uploaded_count}")
     print(f"Skipped existing PDFs: {skipped_count}")
+    print(f"Skipped non-project-document category: {skipped_category_count}")
+    print(f"Skipped probable non-English documents: {skipped_language_count}")
 
 
 if __name__ == "__main__":
