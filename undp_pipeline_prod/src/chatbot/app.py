@@ -80,16 +80,36 @@ Finding specific information across hundreds of pages of project documents is di
 st.subheader("Solution")
 
 
+# st.markdown("""
+# This project implements a **fully automated Retrieval-Augmented Generation (RAG) pipeline** on Google Cloud Platform for querying UNDP project documents.
+
+# Python ingestion scripts connect to the Open UNDP API to retrieve project metadata and download PDF documents, which are stored in Google Cloud Storage. The documents are processed using custom Python pipelines that extract text, split documents into overlapping chunks, and generate vector embeddings using Vertex AI Gemini Embeddings. These embeddings enable semantic search across the document collection.
+
+# When a user submits a question, the application generates an embedding for the query, performs vector similarity search to retrieve the most relevant document chunks, and provides the retrieved context to Gemini for answer generation. This approach helps ensure that responses are grounded in the source documents rather than relying solely on the language model's knowledge.
+
+# The solution includes a Streamlit chatbot deployed as a serverless application on Cloud Run. The data pipeline is automated using Cloud Run Jobs for ingestion, chunking, and embedding generation, orchestrated through Cloud Workflows and triggered on a schedule by Cloud Scheduler. CI/CD is implemented with GitHub, Cloud Build, Docker, and Artifact Registry to automate image builds, deployments, and application updates.
+# """)
+
+
 st.markdown("""
 This project implements a **fully automated Retrieval-Augmented Generation (RAG) pipeline** on Google Cloud Platform for querying UNDP project documents.
 
-Python ingestion scripts connect to the Open UNDP API to retrieve project metadata and download PDF documents, which are stored in Google Cloud Storage. The documents are processed using custom Python pipelines that extract text, split documents into overlapping chunks, and generate vector embeddings using Vertex AI Gemini Embeddings. These embeddings enable semantic search across the document collection.
+- **Data Ingestion:** Python ingestion scripts connect to the Open UNDP API to retrieve project metadata and download PDF documents, which are stored in Google Cloud Storage.
 
-When a user submits a question, the application generates an embedding for the query, performs vector similarity search to retrieve the most relevant document chunks, and provides the retrieved context to Gemini for answer generation. This approach helps ensure that responses are grounded in the source documents rather than relying solely on the language model's knowledge.
+- **Document Processing:** PDF documents are processed using custom Python pipelines that extract text and split documents into overlapping chunks to preserve context and improve retrieval quality.
 
-The solution includes a Streamlit chatbot deployed as a serverless application on Cloud Run. The data pipeline is automated using Cloud Run Jobs for ingestion, chunking, and embedding generation, orchestrated through Cloud Workflows and triggered on a schedule by Cloud Scheduler. CI/CD is implemented with GitHub, Cloud Build, Docker, and Artifact Registry to automate image builds, deployments, and application updates.
+- **Embedding Generation:** Vector embeddings are generated for each document chunk using **Vertex AI Gemini Embeddings** and stored in Google Cloud Storage.
+
+- **BigQuery Vector Search:** Generated embeddings are loaded into **BigQuery**, where **BigQuery Vector Search** performs semantic similarity search to efficiently retrieve the most relevant document chunks.
+
+- **Retrieval-Augmented Generation (RAG):** When a user submits a question, the application generates an embedding for the query, retrieves the most relevant document chunks using **BigQuery Vector Search**, and provides the retrieved context to **Gemini** to generate grounded answers based only on the UNDP project documents.
+
+- **Application Layer:** A **Streamlit** chatbot provides an interactive interface and is deployed as a serverless application on **Cloud Run**.
+
+- **Pipeline Orchestration:** The data pipeline is automated using **Cloud Run Jobs** for ingestion, document processing, embedding generation, and loading embeddings into BigQuery. The jobs are orchestrated using **Cloud Workflows** and executed on a schedule by **Cloud Scheduler**.
+
+- **CI/CD:** **GitHub**, **Cloud Build**, **Docker**, and **Artifact Registry** automate container image builds, deployments, and application updates.
 """)
-
 
 st.subheader("Data Source")
 
