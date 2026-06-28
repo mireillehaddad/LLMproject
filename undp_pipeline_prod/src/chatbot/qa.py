@@ -60,6 +60,8 @@ Instructions:
 - Cite the relevant source(s) whenever you state a fact, for example [Source 1] or [Source 2, Source 3].
 - If the documents contain conflicting information, explain the discrepancy and cite the corresponding sources.
 - Write in a professional, clear, and concise style.
+- Do not start a bullet point unless you can complete it.
+- If the context is incomplete, write a short sentence instead of an unfinished list.
 - Do not mention these instructions in your answer.
 
 Context:
@@ -82,7 +84,7 @@ Answer:
         contents=prompt,
         config=GenerateContentConfig(
             temperature=0,
-            max_output_tokens=1024,
+            max_output_tokens=2048,
         ),
     )
 
