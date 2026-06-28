@@ -5083,3 +5083,15 @@ VECTOR_SEARCH(
 )
 
 Setting use_brute_force to false tells BigQuery to use the vector index instead of scanning every row.
+
+I got an error when I deployed I need to give access to bq:
+
+gcloud projects add-iam-policy-binding undp-project-documents `
+  --member="serviceAccount:1097805338474-compute@developer.gserviceaccount.com" `
+  --role="roles/bigquery.jobUser"
+
+  also grant read access:
+  gcloud projects add-iam-policy-binding undp-project-documents `
+  --member="serviceAccount:1097805338474-compute@developer.gserviceaccount.com" `
+  --role="roles/bigquery.dataViewer"
+  
