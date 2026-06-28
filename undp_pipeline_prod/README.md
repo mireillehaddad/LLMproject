@@ -4904,3 +4904,182 @@ This provides a production-style deployment workflow for the UNDP RAG project.
 
 $env:PYTHONPATH="."
 uv run streamlit run src/chatbot/app.py
+
+# Add BigQuery Vector Search retreiver
+```
+ uv add google-cloud-bigquery
+```
+Create the BigQuery dataset
+```
+bq mk --location=northamerica-northeast1 undp_rag
+```
+
+This script will:
+
+Read embeddings from GCS
+Create BigQuery dataset if missing
+Create table if missing
+Load embeddings into BigQuery
+
+Use this command to create/open the file in VS Code:
+```
+code src/retrieval/load_embeddings_to_bigquery.py
+```
+Then write the loader script there.
+
+After that, run:
+
+$env:PYTHONPATH="."
+uv run python -m src.retrieval.load_embeddings_to_bigquery
+
+Before running, make sure BigQuery API is enabled:
+```
+gcloud services enable bigquery.googleapis.com
+```
+Also make sure your project is set:
+```
+gcloud config set project undp-project-documents
+```
+
+
+update retriever.py
+
+
+```
+from google import genai
+from google.cloud import bigquery
+from google.genai.types import EmbedContentConfig
+
+from src.common.settings import settings
+
+
+TOP_K = 5
+DATASET_ID = "undp_rag"
+TABLE_ID = "rag_chunks"
+
+
+def embed_query(client: genai.Client, query: str) -> list[float]:
+    response = client.models.embed_content(
+        model=settings.embedding_model,
+        contents=query,
+        config=EmbedContentConfig(
+            task_type="RETRIEVAL_QUERY",
+            output_dimensionality=768,
+        ),
+    )
+
+    return response.embeddings[0].values
+
+
+def retrieve(question: str, top_k: int = TOP_K) -> list[dict]:
+    genai_client = genai.Client(
+        vertexai=True,
+        project=settings.project_id,
+        location=settings.region,
+    )
+
+    query_embedding = embed_query(genai_client, question)
+
+    bq_client = bigquery.Client(project=settings.project_id)
+
+    table = f"`{settings.project_id}.{DATASET_ID}.{TABLE_ID}`"
+
+    sql = f"""
+    SELECT
+        base.id,
+        base.text,
+        base.source_pdf_blob,
+        base.page_number,
+        base.year,
+        base.country,
+        base.project_id,
+        base.embedding_blob,
+        distance
+    FROM VECTOR_SEARCH(
+        TABLE {table},
+        'embedding',
+        (SELECT @query_embedding AS embedding),
+        top_k => @top_k,
+        distance_type => 'COSINE'
+    )
+    """
+
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ArrayQueryParameter(
+                "query_embedding",
+                "FLOAT64",
+                query_embedding,
+            ),
+            bigquery.ScalarQueryParameter(
+                "top_k",
+                "INT64",
+                top_k,
+            ),
+        ]
+    )
+
+    rows = bq_client.query(
+        sql,
+        job_config=job_config,
+    ).result()
+
+    results = []
+
+    for row in rows:
+        record = dict(row)
+        record["score"] = 1 - float(record["distance"])
+        results.append(record)
+
+    return results
+```
+
+create a Vector Index on your BigQuery table. Without an index, VECTOR_SEARCH performs a brute-force scan of all 8,786 vectors. At your current size it's still workable, but as your dataset grows, the index becomes much more important for latency.
+
+Run this SQL in BigQuery SQL editor:
+
+CREATE VECTOR INDEX rag_chunks_embedding_index
+ON `undp-project-documents.undp_rag.rag_chunks`(embedding)
+OPTIONS(
+  distance_type = 'COSINE',
+  index_type = 'IVF'
+);
+
+Steps:
+
+Open BigQuery
+Click SQL workspace
+Paste the SQL above
+Click Run
+
+Then check index status:
+
+SELECT
+  table_name,
+  index_name,
+  index_status,
+  coverage_percentage
+FROM `undp-project-documents.undp_rag.INFORMATION_SCHEMA.VECTOR_INDEXES`
+WHERE table_name = 'rag_chunks';
+
+Wait until:
+
+index_status = ACTIVE
+coverage_percentage = 100
+
+Important: after creating the index, your existing VECTOR_SEARCH query can stay the same. BigQuery will use the index automatically when possible.
+
+One more thing to improve your retrieval
+
+Once the index reaches 100%, update your VECTOR_SEARCH query to explicitly use approximate nearest neighbor (ANN) search. For example:
+
+VECTOR_SEARCH(
+    TABLE `undp-project-documents.undp_rag.rag_chunks`,
+    'embedding',
+    (SELECT @query_embedding AS embedding),
+    top_k => @top_k,
+    distance_type => 'COSINE',
+    options => '{"use_brute_force": false}'
+)
+
+Setting use_brute_force to false tells BigQuery to use the vector index instead of scanning every row.
