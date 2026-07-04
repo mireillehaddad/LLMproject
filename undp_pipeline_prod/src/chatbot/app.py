@@ -105,7 +105,7 @@ st.subheader("Solution")
 
 st.markdown("""
 ### Technical Pipeline Overview
-
+            
 This project implements a fully automated **Retrieval-Augmented Generation (RAG)** pipeline on **Google Cloud Platform** for querying **UNDP project documents**.
 
 - **Data Ingestion:** Python ingestion scripts connect to the **Open UNDP API** to retrieve project metadata and download PDF documents, which are stored in **Google Cloud Storage**.
@@ -114,13 +114,13 @@ This project implements a fully automated **Retrieval-Augmented Generation (RAG)
 
 - **Embedding Generation:** Each document chunk is converted into a vector embedding using **Vertex AI Gemini Embeddings**.
 
-- **Hybrid Retrieval in BigQuery:** Generated embeddings are loaded into **BigQuery**. The retriever combines **BigQuery Vector Search** for semantic similarity with keyword-based retrieval, then re-ranks candidates using **Reciprocal Rank Fusion (RRF)**.
+- **Hybrid Retrieval in BigQuery:** Generated embeddings are loaded into **BigQuery**, where **BigQuery Vector Search** enables semantic retrieval using vector embeddings. In parallel, a **keyword-based text search** is performed using extracted query terms with domain-specific query expansion based on **UNDP themes and Sustainable Development Goals (SDGs)**. The semantic and keyword search results are merged and re-ranked using **Reciprocal Rank Fusion (RRF)** to improve retrieval accuracy and robustness.
 
-- **Retrieval-Augmented Generation (RAG):** When a user submits a question, the system retrieves the most relevant document chunks and provides them to **Gemini**, which generates grounded responses based only on the retrieved UNDP project documents.
+- **Retrieval-Augmented Generation (RAG):** When a user submits a question, the system generates an embedding for the query, performs hybrid retrieval to identify the most relevant document chunks, and provides the retrieved context to **Gemini**, which generates grounded responses based solely on the retrieved UNDP project documents.
 
 - **Application Layer:** A **Streamlit** chatbot provides an interactive interface and is deployed as a serverless application on **Cloud Run**.
 
-- **Pipeline Orchestration:** The end-to-end pipeline is automated using **Cloud Run Jobs** for data ingestion, document processing, embedding generation, and loading embeddings into BigQuery. These jobs are orchestrated with **Cloud Workflows** and scheduled using **Cloud Scheduler**.
+- **Pipeline Orchestration:** The end-to-end pipeline is automated using **Cloud Run Jobs** for data ingestion, document processing, embedding generation, and loading embeddings into **BigQuery**. These jobs are orchestrated using **Cloud Workflows** and scheduled with **Cloud Scheduler**.
 
 - **CI/CD:** **GitHub**, **Cloud Build**, **Docker**, and **Artifact Registry** automate container image creation, deployment, and application updates.
 """)
