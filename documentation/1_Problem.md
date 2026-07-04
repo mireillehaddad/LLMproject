@@ -35,6 +35,67 @@ https://api.open.undp.org/api_documentation/api#!/default/individual_project_dat
 
 ---
 
+
+Top countries found:
+Argentina: 29
+Bureau Policy & Prog Support: 21
+Ukraine: 19
+Yemen: 14
+Afghanistan: 9
+Guatemala: 9
+Crisis Bureau: 9
+Ethiopia: 8
+Pakistan: 8
+Syria: 8
+Zimbabwe: 7
+Lebanon: 7
+Sudan, Republic of the: 7
+Prog for Palestinian People: 7
+Iraq: 6
+Turkmenistan: 6
+South Sudan, Republic of: 6
+Angola: 6
+Egypt: 6
+Honduras: 6
+Democratic Republic of Congo: 5
+India: 5
+Mozambique: 5
+Colombia: 5
+Cuba: 4
+Burundi: 4
+Turkiye: 4
+Chad: 4
+Brazil: 4
+Dominica: 3
+Uruguay: 3
+Nigeria: 3
+Indonesia: 3
+Paraguay: 3
+Morocco: 3
+Bangladesh: 3
+Moldova, Republic of: 2
+Serbia: 2
+Haiti: 2
+Bureau for Dev. Policy: 2
+Cyprus: 2
+Nepal: 2
+Central African Republic: 2
+Panama: 2
+Congo: 2
+Albania: 1
+Dakar Regional Service Centre: 1
+Fiji: 1
+Libya: 1
+Burkina Faso: 1
+
+
+Ingested pdf's for
+ Iraq
+Lebanon
+Prog for Palestinian People
+Yemen
+
+
 ## Architecture
 
 ```text

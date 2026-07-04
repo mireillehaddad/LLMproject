@@ -45,6 +45,17 @@ def create_table_if_missing(client: bigquery.Client) -> None:
     print(f"Table ready: {table_id()}")
 
 
+def create_search_index(client: bigquery.Client) -> None:
+    sql = f"""
+    CREATE SEARCH INDEX IF NOT EXISTS rag_chunks_text_index
+    ON `{table_id()}`(text)
+    """
+
+    client.query(sql).result()
+
+    print("Search index ready.")
+
+
 def get_metadata_value(record: dict, key: str) -> str | None:
     value = record.get(key)
 
@@ -168,6 +179,8 @@ def run() -> None:
 
     rows = build_rows()
     load_rows(client, rows)
+
+    create_search_index(client)
 
 
 if __name__ == "__main__":

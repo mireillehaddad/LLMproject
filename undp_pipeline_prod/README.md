@@ -5128,3 +5128,298 @@ $env:PYTHONPATH="."
 uv run streamlit run src/chatbot/app.py
 ```
 
+Remark: 
+I should add load_embeddings_to_bigquery.py  to the pipeline in docker cloudrun, and ci/cd
+##################################################################################################
+
+# Retrieval Evaluation
+
+Two retrieval approaches were implemented and evaluated during the development of the chatbot. The initial implementation performed semantic retrieval using an in-memory Python search, while the final implementation uses BigQuery Vector Search with a BigQuery Vector Index.
+
+## Approach 1: In-Memory Python Retrieval
+
+The first implementation stored document embeddings as JSONL files in Google Cloud Storage. During query execution, all embeddings were loaded into memory, a query embedding was generated using Vertex AI Gemini Embeddings, and cosine similarity was computed in Python using NumPy to retrieve the most relevant document chunks.
+
+### Advantages
+
+* Simple to implement.
+* Suitable for small document collections.
+
+### Limitations
+
+* Requires loading all embeddings into application memory.
+* Retrieval time increases as the number of document chunks grows.
+* Limited scalability for large datasets and production deployments.
+
+---
+
+## Approach 2: BigQuery Vector Search
+
+The final implementation stores document embeddings in BigQuery and performs semantic retrieval using BigQuery Vector Search with a BigQuery Vector Index. For each user query, an embedding is generated using Vertex AI Gemini Embeddings and compared against the indexed embeddings stored in BigQuery. The most relevant document chunks are then returned to the application.
+
+### Advantages
+
+* Scales efficiently to large document collections.
+* No need to load embeddings into application memory.
+* Faster semantic retrieval through the BigQuery Vector Index.
+* Better suited for production and cloud-native deployments.
+
+---
+
+## Final Retrieval Strategy
+
+The project initially relied on an in-memory cosine similarity search implemented in Python. While this approach produced accurate results, it required loading all embeddings into memory and became less efficient as the document collection increased.
+
+The final implementation uses BigQuery Vector Search with a BigQuery Vector Index, allowing semantic retrieval to be performed directly within BigQuery. This architecture improves scalability, reduces memory consumption, and provides faster retrieval for large collections of UNDP project documents. Based on this evaluation, BigQuery Vector Search was selected as the final retrieval strategy.
+
+## Comparison
+
+| Feature           | In-Memory Python Retrieval                   | BigQuery Vector Search               |
+| ----------------- | -------------------------------------------- | ------------------------------------ |
+| Embedding Storage | JSONL files in Google Cloud Storage          | BigQuery                             |
+| Search Method     | NumPy cosine similarity                      | BigQuery `VECTOR_SEARCH`             |
+| Vector Index      | No                                           | BigQuery Vector Index                |
+| Scalability       | Limited                                      | High                                 |
+| Memory Usage      | Loads all embeddings into application memory | Server-side retrieval                |
+| Production Ready  | Suitable for small datasets                  | Suitable for large-scale deployments |
+| Final Selection   | No                                           | Yes                                  |
+
+
+
+#########################################################################################################
+# LLM Evaluation
+
+Two prompt templates were evaluated during the development of the chatbot to improve response quality, reduce hallucinations, and ensure that answers remained grounded in the retrieved UNDP project documents.
+
+## Prompt 1: Basic Grounded Prompt
+
+The initial implementation used a concise prompt that instructed the model to answer only using the retrieved document context.
+
+```text
+You are a UNDP project assistant.
+
+Answer only using the retrieved document context.
+
+If the answer is not in the context, say:
+"I could not find this information in the available UNDP project documents."
+
+Always cite sources using [Source 1], [Source 2], etc.
+
+Do not make up facts.
+```
+
+### Advantages
+
+* Simple and easy to maintain.
+* Reduced hallucinations compared with an unrestricted prompt.
+* Required the model to cite retrieved sources.
+* Returned a fallback response when the retrieved context was insufficient.
+
+### Limitations
+
+* Did not explain the structure of the retrieved context.
+* Did not instruct the model how to handle conflicting information across multiple documents.
+* Did not provide formatting guidance, occasionally resulting in incomplete bullet lists or inconsistent answers.
+* Did not explicitly instruct the model to combine information from multiple retrieved document chunks.
+
+---
+
+## Prompt 2: Structured Grounded Prompt
+
+The final implementation uses a more detailed prompt that explains the structure of the retrieved context and provides additional instructions for answer generation.
+
+The improvements include:
+
+* Explaining that each retrieved excerpt contains a source number, document name, page number, and extracted text.
+* Restricting the model to use only the retrieved document context.
+* Explicitly prohibiting outside knowledge, assumptions, and speculation.
+* Preventing the model from inventing facts such as project names, budgets, organizations, beneficiaries, dates, and outcomes.
+* Combining information from multiple retrieved document chunks into a single coherent response when appropriate.
+* Requiring citations for every factual statement.
+* Explaining how to handle conflicting information by citing the corresponding sources.
+* Requesting professional, concise, and well-formatted answers.
+* Preventing unfinished bullet lists when the available context is incomplete.
+
+### Advantages
+
+* Produces more structured and consistent responses.
+* Improves grounding by providing stronger instructions.
+* Better handles questions requiring information from multiple retrieved chunks.
+* Produces more reliable source citations.
+* Reduces incomplete or poorly formatted responses.
+* Improves the overall readability of generated answers.
+
+---
+
+## Final Prompt Strategy
+
+The structured grounded prompt was selected as the final implementation because it consistently generated clearer, more reliable, and better-supported answers. Compared with the initial prompt, it improved response formatting, strengthened source attribution, reduced unsupported statements, and handled complex questions involving multiple document excerpts more effectively.
+
+## Comparison
+
+| Feature                                | Initial Prompt | Final Prompt        |
+| -------------------------------------- | -------------- | ------------------- |
+| Uses retrieved context                 | Yes            | Yes                 |
+| Restricts answers to retrieved context | Yes            | Yes                 |
+| Prohibits invented facts               | Yes            | Yes (more explicit) |
+| Requires source citations              | Yes            | Yes                 |
+| Explains retrieved context structure   | No             | Yes                 |
+| Combines multiple retrieved sources    | No             | Yes                 |
+| Handles conflicting information        | No             | Yes                 |
+| Improves response formatting           | Limited        | Yes                 |
+| Prevents incomplete bullet lists       | No             | Yes                 |
+| Final selection                        | No             | Yes                 |
+################################################################################################################
+
+The application is containerized using Docker and deployed on Google Cloud Run. Docker Compose was not used because the architecture relies on managed Google Cloud services (BigQuery, Cloud Storage, Vertex AI, Cloud Run Jobs, Cloud Workflows, and Cloud Scheduler) rather than locally hosted containers. This cloud-native design more closely reflects a production deployment.
+
+################################################################################################################
+
+
+try this Best Practices
+Item	Points
+Hybrid search	0/1
+Re-ranking	0/1
+Query rewriting	0/1???
+
+
+
+Step 1. Show feedback buttons
+
+Immediately after displaying the answer, add:
+
+st.markdown("---")
+st.subheader("Feedback")
+
+col1, col2 = st.columns(2)
+
+with col1:
+    thumbs_up = st.button("👍 Helpful")
+
+with col2:
+    thumbs_down = st.button("👎 Not Helpful")
+
+comment = st.text_area(
+    "Additional comments (optional)",
+    placeholder="Tell us how we can improve..."
+)
+Step 2. Create a BigQuery table
+
+Create a dataset if you don't already have one.
+
+Example:
+
+Dataset:
+undp_feedback
+
+Table:
+
+chatbot_feedback
+
+Schema:
+
+Column	Type
+timestamp	TIMESTAMP
+question	STRING
+answer	STRING
+feedback	STRING
+comment	STRING
+
+That's all you need.
+
+Step 3. Create a helper function
+
+For example:
+
+from datetime import datetime
+
+from google.cloud import bigquery
+
+from src.common.settings import settings
+
+
+def save_feedback(question, answer, feedback, comment):
+
+    client = bigquery.Client(project=settings.project_id)
+
+    table = (
+        f"{settings.project_id}."
+        "undp_feedback.chatbot_feedback"
+    )
+
+    rows = [{
+        "timestamp": datetime.utcnow().isoformat(),
+        "question": question,
+        "answer": answer,
+        "feedback": feedback,
+        "comment": comment,
+    }]
+
+    errors = client.insert_rows_json(table, rows)
+
+    if errors:
+        print(errors)
+Step 4. Save when the user clicks
+if thumbs_up:
+
+    save_feedback(
+        question,
+        answer,
+        "Helpful",
+        comment,
+    )
+
+    st.success("Thank you for your feedback!")
+
+if thumbs_down:
+
+    save_feedback(
+        question,
+        answer,
+        "Not Helpful",
+        comment,
+    )
+
+    st.success("Thank you for your feedback!")
+Result
+
+The bottom of your chatbot becomes
+
+-----------------------------------
+
+Feedback
+
+👍 Helpful      👎 Not Helpful
+
+Additional comments
+
+___________________________________
+
+
+When a user clicks a button, a row is inserted into BigQuery.
+
+Later you can build monitoring
+
+Once feedback is stored, you can build a dashboard showing:
+
+Number of questions
+Positive vs negative feedback
+Most asked countries
+Average similarity score
+Average response time
+I actually recommend one small improvement
+
+Since you already have the retrieved chunks, save a little more information:
+
+Field	Why
+timestamp	when
+question	what user asked
+answer	what Gemini answered
+feedback	👍 / 👎
+comment	optional
+response_time	performance monitoring
+country	from top retrieved chunk
+project_id	top retrieved project
+similarity_score	retrieval quality
+
+This gives you enough data to build a meaningful monitoring dashboard later and demonstrates a production-oriented design.

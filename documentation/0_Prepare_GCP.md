@@ -55,6 +55,12 @@ gcloud config set project undp-project-documents
 gcloud config list
 
 
+### Create a bucket. Bucket names must be globally unique, so use something like:
 
+gcloud storage buckets create gs://undp-project-documents-llm-2026 --location=northamerica-northeast1
+
+Then verify:
+
+gcloud storage buckets list
 
 

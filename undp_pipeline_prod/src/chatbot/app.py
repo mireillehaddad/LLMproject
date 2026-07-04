@@ -41,20 +41,31 @@ if st.button("Ask"):
                     source.get("source_pdf_blob", "Unknown")
                 )
 
-                with st.expander(
-                    f"Source {i} | {pdf_name} | Score: {source['score']:.3f}"
-                ):
+                vector_score = source.get("vector_score", 0) or 0
+                keyword_score = source.get("keyword_score", 0) or 0
+                rrf_score = source.get("score", 0) or 0
 
+                vector_rank = source.get("vector_rank") or "N/A"
+                keyword_rank = source.get("keyword_rank") or "N/A"
+
+                with st.expander(
+                    f"Source {i} | {pdf_name} "
+                    f"| Semantic relevance score: {vector_score:.3f} "
+                ):
                     col1, col2 = st.columns(2)
 
                     with col1:
                         st.markdown(f"**🌍 Country:** {source.get('country', 'Unknown')}")
                         st.markdown(f"**📅 Year:** {source.get('year', 'Unknown')}")
                         st.markdown(f"**📖 Page:** {source.get('page_number', 'Unknown')}")
+                        st.markdown(f"**🆔 Project ID:** {source.get('project_id', 'Unknown')}")
 
                     with col2:
-                        st.markdown(f"**🆔 Project ID:** {source.get('project_id', 'Unknown')}")
-                        st.markdown(f"**🎯 Similarity:** {source['score']:.3f}")
+                        st.markdown(f"**🎯 Semantic Similarity:** {vector_score:.3f}")
+                        st.markdown(f"**🔎 Keyword Matches:** {keyword_score}")
+                        st.markdown(f"**🏁 RRF Ranking Score:** {rrf_score:.4f}")
+                        st.markdown(f"**📌 Vector Rank:** {vector_rank}")
+                        st.markdown(f"**📌 Keyword Rank:** {keyword_rank}")
 
                     st.markdown(f"**📄 Document:** `{pdf_name}`")
 
@@ -85,9 +96,7 @@ st.header("About This Project")
 st.subheader("Problem")
 
 st.markdown("""
-UNDP publishes project documents in PDF format on the **Open UNDP** website:
-
-**https://open.undp.org/**
+UNDP publishes project documents in PDF format on the **Open UNDP** website.
 
 Finding specific information across hundreds of pages of project documents is difficult and time-consuming.
 """)
@@ -105,9 +114,9 @@ This project implements a fully automated **Retrieval-Augmented Generation (RAG)
 
 - **Embedding Generation:** Each document chunk is converted into a vector embedding using **Vertex AI Gemini Embeddings**.
 
-- **BigQuery Vector Search:** Generated embeddings are loaded into **BigQuery**, where a **BigQuery Vector Index** enables fast semantic similarity search to retrieve the most relevant document chunks.
+- **Hybrid Retrieval in BigQuery:** Generated embeddings are loaded into **BigQuery**. The retriever combines **BigQuery Vector Search** for semantic similarity with keyword-based retrieval, then re-ranks candidates using **Reciprocal Rank Fusion (RRF)**.
 
-- **Retrieval-Augmented Generation (RAG):** When a user submits a question, an embedding is generated for the query and compared against the indexed document embeddings in **BigQuery Vector Search**. The retrieved context is then provided to **Gemini**, which generates grounded responses based solely on the retrieved UNDP project documents.
+- **Retrieval-Augmented Generation (RAG):** When a user submits a question, the system retrieves the most relevant document chunks and provides them to **Gemini**, which generates grounded responses based only on the retrieved UNDP project documents.
 
 - **Application Layer:** A **Streamlit** chatbot provides an interactive interface and is deployed as a serverless application on **Cloud Run**.
 
@@ -119,7 +128,5 @@ This project implements a fully automated **Retrieval-Augmented Generation (RAG)
 st.subheader("Data Source")
 
 st.markdown("""
-Open UNDP API Documentation:
-
-https://api.open.undp.org/api_documentation/api#!/default/individual_project_data
+Open UNDP API Documentation: https://api.open.undp.org/api_documentation/api#!/default/individual_project_data
 """)
