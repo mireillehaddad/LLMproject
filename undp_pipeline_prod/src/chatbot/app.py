@@ -50,7 +50,7 @@ if st.button("Ask"):
 
                 with st.expander(
                     f"Source {i} | {pdf_name} "
-                    f"| Semantic relevance score: {vector_score:.3f} "
+                    f"| Cosine similarity score: {vector_score:.3f} "
                 ):
                     col1, col2 = st.columns(2)
 
@@ -61,7 +61,7 @@ if st.button("Ask"):
                         st.markdown(f"**🆔 Project ID:** {source.get('project_id', 'Unknown')}")
 
                     with col2:
-                        st.markdown(f"**🎯 Semantic Similarity:** {vector_score:.3f}")
+                        st.markdown(f"**🎯 Cosine Similarity:** {vector_score:.3f}")
                         st.markdown(f"**🔎 Keyword Matches:** {keyword_score}")
                         st.markdown(f"**🏁 RRF Ranking Score:** {rrf_score:.4f}")
                         st.markdown(f"**📌 Vector Rank:** {vector_rank}")
