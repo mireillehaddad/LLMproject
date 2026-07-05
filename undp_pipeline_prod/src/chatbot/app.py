@@ -63,7 +63,7 @@ if st.button("Ask"):
                     with col2:
                         st.markdown(f"**🎯 Cosine Similarity:** {vector_score:.3f}")
                         st.markdown(f"**🔎 Keyword Matches:** {keyword_score}")
-                        st.markdown(f"**🏁 RRF Ranking Score:** {rrf_score:.4f}")
+                        st.markdown(f"**🏁 Reciprocal Rank Fusion Score:** {rrf_score:.4f}")
                         st.markdown(f"**📌 Vector Rank:** {vector_rank}")
                         st.markdown(f"**📌 Keyword Rank:** {keyword_rank}")
 
