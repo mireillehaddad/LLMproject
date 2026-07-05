@@ -5423,3 +5423,82 @@ project_id	top retrieved project
 similarity_score	retrieval quality
 
 This gives you enough data to build a meaningful monitoring dashboard later and demonstrates a production-oriented design.
+
+
+your current evaluation assumes one question → one correct document/chunk.
+
+For your UNDP chatbot, a better setup is:
+
+one question → multiple acceptable relevant chunks/pages/documents
+
+So your ground truth should store a list of relevant IDs, not one ID.
+
+Example:
+
+ground_truth = [
+    {
+        "question": "What projects improve access to clean drinking water?",
+        "relevant_ids": [
+            "chunk_id_1",
+            "chunk_id_7",
+            "chunk_id_25",
+        ],
+    }
+]
+
+Then relevance becomes:
+
+def compute_relevance(record, results):
+    relevant_ids = set(record["relevant_ids"])
+
+    return [
+        result["id"] in relevant_ids
+        for result in results
+    ]
+
+Your evaluator becomes:
+
+def compute_relevance_total(ground_truth, search_function):
+    relevance_total = []
+
+    for record in ground_truth:
+        results = search_function(record["question"])
+        relevance = compute_relevance(record, results)
+        relevance_total.append(relevance)
+
+    return relevance_total
+
+Then this still works:
+
+def evaluate(ground_truth, search_function):
+    relevance_total = compute_relevance_total(ground_truth, search_function)
+
+    return {
+        "hit_rate": hit_rate(relevance_total),
+        "mrr": mrr(relevance_total),
+    }
+
+Meaning:
+
+Hit Rate@k = did at least one correct chunk appear?
+MRR = how early did the first correct chunk appear?
+
+For questions where many chunks may answer the question, also add:
+
+def recall_at_k(ground_truth, search_function, k=5):
+    scores = []
+
+    for record in ground_truth:
+        relevant_ids = set(record["relevant_ids"])
+        results = search_function(record["question"])[:k]
+        retrieved_ids = {r["id"] for r in results}
+
+        scores.append(len(retrieved_ids & relevant_ids) / len(relevant_ids))
+
+    return sum(scores) / len(scores)
+
+Use:
+
+Hit Rate@5 → Did I retrieve at least one useful source?
+MRR → Was a useful source ranked high?
+Recall@5 → How many of all known useful sources did I retrieve?

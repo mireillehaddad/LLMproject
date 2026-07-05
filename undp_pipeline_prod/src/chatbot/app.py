@@ -62,10 +62,39 @@ if st.button("Ask"):
 
                     with col2:
                         st.markdown(f"**🎯 Cosine Similarity:** {vector_score:.3f}")
+                        st.caption(
+                            "Measures semantic similarity between the user's question and the retrieved "
+                            "document chunk (range: 0–1). Higher values indicate stronger semantic "
+                            "similarity. In practice, values above ~0.70 generally represent good matches, "
+                            "although this depends on the embedding model and dataset."
+                        )
+
                         st.markdown(f"**🔎 Keyword Matches:** {keyword_score}")
-                        st.markdown(f"**🏁 Reciprocal Rank Fusion Score:** {rrf_score:.4f}")
+                        st.caption(
+                            "Number of query keywords (or expanded keywords) found in the document. "
+                            "Higher values indicate a stronger lexical (text-based) match. There is "
+                            "no fixed maximum since it depends on the query length and matching method."
+                        )
+
+                        st.markdown(f"**🏁 Reciprocal Rank Fusion (RRF) Score:** {rrf_score:.4f}")
+                        st.caption(
+                            "Combines the semantic (vector) search rank and keyword search rank into "
+                            "a single ranking score. Higher scores are better. With the commonly used "
+                            "fusion constant k=60, RRF scores typically range from 0.02 to 0.04. The "
+                            "absolute value has no intrinsic meaning—it is only used to rank results."
+                        )
+
                         st.markdown(f"**📌 Vector Rank:** {vector_rank}")
+                        st.caption(
+                            "The document's position in the semantic (vector) search results. "
+                            "Rank 1 is the most semantically similar document; lower rank numbers are better."
+                        )
+
                         st.markdown(f"**📌 Keyword Rank:** {keyword_rank}")
+                        st.caption(
+                            "The document's position in the keyword (text) search results. "
+                            "Rank 1 indicates the strongest keyword match; lower rank numbers are better."
+                        )
 
                     st.markdown(f"**📄 Document:** `{pdf_name}`")
 
