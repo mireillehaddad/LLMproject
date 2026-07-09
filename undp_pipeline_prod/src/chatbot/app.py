@@ -10,7 +10,17 @@ st.set_page_config(
     page_icon="📄",
     layout="wide",
 )
+st.markdown("---")
 
+st.subheader("About the Author")
+
+st.info("""
+**Developed by Mireille El Haddad**
+
+This application was developed as the **final project** for the **LLM Zoomcamp** offered by **DataTalks.Club**.
+
+The project showcases an end-to-end production-style RAG pipeline built on Google Cloud Platform for querying UNDP project documents using hybrid retrieval and Gemini.
+""")
 st.title("📄 UNDP Project Document Chatbot")
 
 st.write(
