@@ -1,160 +1,110 @@
-Evaluation pipeline
--------------------
-run_chunk_eval.py
-        ↓
-run_embed_eval.py
-        ↓
-load_embeddings_eval_to_bigquery.py
-        ↓
-build_ground_truth.py
-        ↓
-evaluate_retrieval.py
-        ↓
-evaluate_generation.py
-```text
-src/
-├── retrieval/
-│   
-│
-└── evaluation/
-    ├── run_chunk_eval.py
-    ├── run_embed_eval.py
-    ├── load_embeddings_eval_to_bigquery.py
-    ├── build_ground_truth.py
-    ├── evaluate_retrieval.py
-    ├── evaluate_generation.py
-    └── metrics.py
-| File | Description |
-|------|-------------|
-| `run_chunk_eval.py` | Creates evaluation chunks from the document corpus. |
-| `run_embed_eval.py` | Generates embeddings for the evaluation dataset. |
-| `load_embeddings_eval_to_bigquery.py` | Uploads evaluation embeddings to BigQuery. |
-| `build_ground_truth.py` | Uses Gemini to generate ground-truth question–answer pairs. |
-| `evaluate_retrieval.py` | Evaluates retrieval quality using Hit Rate and Mean Reciprocal Rank (MRR). |
-| `evaluate_generation.py` | Evaluates generated answers using an LLM-as-a-Judge approach. |
-| `metrics.py` | Implements evaluation metrics and utility functions. |
-```
-# Generate evaluation chunks with id added
-```
-$env:PYTHONPATH="."
-uv run python -m src.evaluation.run_chunk_eval
+# Supporting Multiple Relevant Chunks
+
+In a Retrieval-Augmented Generation (RAG) system, a question may have **multiple correct document chunks** rather than a single ground-truth answer.
+
+Instead of storing one relevant document ID:
+
+```python
+record["relevant_id"]
 ```
 
-# Generate evaluation embeddings
-two changes:
-settings.eval_processed_prefix for reading chunks, and:
-settings.eval_embeddings_prefix for writing embeddings.
-```
-$env:PYTHONPATH="."
-uv run python -m src.evaluation.run_embed_eval
-```
-```
-$env:PYTHONPATH="."
-uv run python -m src.evaluation.load_embeddings_eval_to_bigquery
+store a list of relevant document IDs:
 
+```python
+record["relevant_ids"]
 ```
 
-# Build the ground-truth dataset
-* Read evaluation chunks from undp_rag.rag_chunks_eval.
-* Select a manageable sample.
-* Ask Gemini to generate realistic questions answerable from each chunk.
-* Save each question with the originating chunk_id.
-* Write the ground-truth dataset to GCS.
+## Compute Relevance
+
+```python
+def compute_relevance(record, results):
+    relevant_ids = set(record["relevant_ids"])
+
+    return [
+        result["id"] in relevant_ids
+        for result in results
+    ]
 ```
-$env:PYTHONPATH="."
-uv run python -m src.evaluation.build_ground_truth
+
+## Evaluate the Entire Dataset
+
+```python
+def compute_relevance_total(ground_truth, search_function):
+    relevance_total = []
+
+    for record in ground_truth:
+        results = search_function(record["question"])
+        relevance = compute_relevance(record, results)
+        relevance_total.append(relevance)
+
+    return relevance_total
 ```
-# Evaluate retrieval
-* Read this ground-truth JSONL file.
-* Embed each question using RETRIEVAL_QUERY.
-* Search rag_chunks_eval.
-* Collect the top K chunk IDs.
-* Compare them against relevant_chunk_ids.
-* Calculate:
-* Hit Rate@K
-* MRR
-* Precision@K
-* Recall@K
 
+The existing evaluation function remains unchanged:
+
+```python
+def evaluate(ground_truth, search_function):
+    relevance_total = compute_relevance_total(
+        ground_truth,
+        search_function,
+    )
+
+    return {
+        "hit_rate": hit_rate(relevance_total),
+        "mrr": mrr(relevance_total),
+    }
 ```
-$env:PYTHONPATH="."
-uv run python -m src.evaluation.evaluate_retrieval
+
+## Metric Interpretation
+
+### Hit Rate@K
+
+Measures whether **at least one relevant chunk** is retrieved within the top *K* results.
+
+> **Question:** Did the retrieval system return any useful document?
+
+---
+
+### Mean Reciprocal Rank (MRR)
+
+Measures the position of the **first relevant chunk** in the ranked results.
+
+> **Question:** How early did the first useful document appear?
+
+Higher values indicate that relevant documents are ranked closer to the top.
+
+---
+
+## Recall@K
+
+When multiple document chunks are considered relevant, **Recall@K** provides a more complete evaluation by measuring how many of the known relevant chunks are retrieved.
+
+```python
+def recall_at_k(ground_truth, search_function, k=5):
+    scores = []
+
+    for record in ground_truth:
+        relevant_ids = set(record["relevant_ids"])
+        results = search_function(record["question"])[:k]
+        retrieved_ids = {r["id"] for r in results}
+
+        scores.append(
+            len(retrieved_ids & relevant_ids) / len(relevant_ids)
+        )
+
+    return sum(scores) / len(scores)
 ```
-============================================================
-Retrieval evaluation summary
-============================================================
-Questions total: 100
-Questions evaluated: 100
-Questions failed: 0
-Hit Rate@10: 0.4400
-MRR@10: 0.1797
-Mean Precision@10: 0.0440
-Mean Recall@10: 0.4400
-Mean Evidence-Group Recall@10: 0.4400
 
-# Evaluate hybrid retrieval
-src/evaluation/hybrid_retrieval_eval.py
+## Summary
 
+| Metric | Measures | Best Used For |
+|---------|----------|---------------|
+| **Hit Rate@K** | Whether at least one relevant chunk is retrieved | Basic retrieval success |
+| **MRR** | Ranking position of the first relevant chunk | Ranking quality |
+| **Recall@K** | Fraction of all relevant chunks retrieved | Questions with multiple valid answers |
 
-```
-$env:PYTHONPATH="."
-uv run python -m src.evaluation.hybrid_retrieval_eval
+Together, these metrics provide a comprehensive evaluation of retrieval performance:
 
-```
-# Retrieval evaluation summary
-============================================================
-Questions total: 100
-Questions evaluated: 100
-Questions failed: 0
-Hit Rate@10: 0.5600
-MRR@10: 0.2167
-Mean Precision@10: 0.0560
-Mean Recall@10: 0.5600
-Mean Evidence-Group Recall@10: 0.5600
-
-
-
-## Hybrid retrieval using semantic vector search, keyword matching, domain-specific query expansion, and Reciprocal Rank Fusion outperformed vector-only retrieval. Hit Rate@10 increased from 0.44 to 0.56, while MRR@10 increased from 0.1797 to 0.2167.
-One caveat: this still evaluates recovery of the exact source chunk used to generate each question. Because my corpus contains overlapping and duplicated content, actual answer retrieval quality may be higher than 56%.
-
-
-One important insight may emerge: the exact labeled chunk might not always be retrieved, but the answer can still score perfectly because another overlapping or duplicate chunk contains the same evidence. That would confirm that my earlier Hit Rate@10 of 0.56 underestimates actual answer quality.
-# Evaluate answer generation
-* Load the latest ground-truth questions.
-* Retrieve the top 10 chunks using my evaluation hybrid retriever.
-* Generate an answer from those chunks.
-* Ask Gemini to judge the generated answer against:
-* the reference answer;
-* the retrieved context.
-* Calculate average correctness, groundedness, completeness, answer relevance, and hallucination rate.
-* Save detailed and summary results separately in GCS.
-
-Run the first test with 20 questions:
-
-```
-$env:PYTHONPATH="."
-$env:GENERATION_EVAL_MAX_QUESTIONS="20"
-
-uv run python -m src.evaluation.evaluate_generation
-```
-```
-$env:PYTHONPATH="."
-uv run python -m src.evaluation.evaluate_generation
-```
-============================================================
-# Generation evaluation summary
-============================================================
-* Questions total: 100
-* Questions evaluated: 100
-* Questions failed: 0
-* Mean correctness: 1.6400 / 2
-* Mean groundedness: 1.9400 / 2
-* Mean completeness: 1.7000 / 2
-* Mean answer relevance: 1.9500 / 2
-* Normalized total score: 0.9038
-* Hallucination rate: 0.0100
-* Exact source retrieval rate: 0.5600
-* Relevant answers: 0.7700
-* Partly relevant answers: 0.1900
-* Non-relevant answers: 0.0400
-* Mean total time/question: 11.87 seconds
+- **Hit Rate@K** answers: *Did the system retrieve any useful information?*
+- **MRR** answers: *Was the useful information ranked near the top?*
+- **Recall@K** answers: *How much of the relevant information was retrieved?*
