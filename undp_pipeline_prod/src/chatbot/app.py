@@ -130,7 +130,7 @@ feedback = st.text_area(
 
 if st.button("Submit"):
     st.success("Thank you for your feedback!")
-    
+
 st.subheader("Example Questions")
 
 st.markdown("""
@@ -194,9 +194,7 @@ Retrieval performance was measured using:
 
 - **Hit Rate@K**
 - **Mean Reciprocal Rank (MRR)**
-- **Precision@K**
-- **Recall@K**
-- **Evidence-Group Recall**
+
 
 **Generated-Answer Evaluation**
 
@@ -206,9 +204,7 @@ using an **LLM-as-a-Judge** approach.
 
 Generated answers were evaluated for:
 
-- **Correctness**
 - **Groundedness**
-- **Completeness**
 - **Answer Relevance**
 - **Hallucination Detection**
 """)

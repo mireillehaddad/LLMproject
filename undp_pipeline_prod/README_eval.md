@@ -11,7 +11,7 @@ build_ground_truth.py
 evaluate_retrieval.py
         ↓
 evaluate_generation.py
-
+```text
 src/
 ├── retrieval/
 │   
@@ -24,8 +24,16 @@ src/
     ├── evaluate_retrieval.py
     ├── evaluate_generation.py
     └── metrics.py
-
-
+| File | Description |
+|------|-------------|
+| `run_chunk_eval.py` | Creates evaluation chunks from the document corpus. |
+| `run_embed_eval.py` | Generates embeddings for the evaluation dataset. |
+| `load_embeddings_eval_to_bigquery.py` | Uploads evaluation embeddings to BigQuery. |
+| `build_ground_truth.py` | Uses Gemini to generate ground-truth question–answer pairs. |
+| `evaluate_retrieval.py` | Evaluates retrieval quality using Hit Rate and Mean Reciprocal Rank (MRR). |
+| `evaluate_generation.py` | Evaluates generated answers using an LLM-as-a-Judge approach. |
+| `metrics.py` | Implements evaluation metrics and utility functions. |
+```
 # Generate evaluation chunks with id added
 ```
 $env:PYTHONPATH="."
