@@ -1,6 +1,6 @@
 # Step 1 — Enable Required Google Cloud Services
 
-Before creating Cloud Run Jobs, Cloud Composer, or deploying the chatbot, configure your Google Cloud project and enable all required services.
+Before creating Cloud Run Jobs, Cloud Composer, or deploying the chatbot, configure  Google Cloud project and enable all required services.
 
 ---
 
@@ -226,7 +226,7 @@ This step creates the local Python project folder, initializes the project with 
 
 ## 1. Go to Your Project Folder
 
-Open PowerShell and navigate to your project directory:
+Open PowerShell and navigate to  project directory:
 
 ```powershell
 cd C:\Users\mirei\OneDrive\Desktop\LLMproject
@@ -275,7 +275,7 @@ Run:
 .venv\Scripts\Activate.ps1
 ```
 
-After activation, your terminal should show something similar to:
+After activation, terminal should show something similar to:
 
 ```text
 (.venv) PS C:\Users\mirei\OneDrive\Desktop\LLMproject\undp_pipeline_prod>
@@ -2137,7 +2137,7 @@ The chatbot needs access to:
 * Google Cloud Storage
 * Vertex AI Gemini
 
-When running locally inside Docker, mount your local Google Application Default Credentials.
+When running locally inside Docker, mount local Google Application Default Credentials.
 
 First make sure ADC exists locally:
 
@@ -2356,7 +2356,7 @@ embed-job
 
 because Google Cloud Workflows is lightweight, inexpensive, and designed specifically to execute steps sequentially. It gives you most of the orchestration benefits of Airflow without the Composer cost.
 
-So my preferred final architecture for your UNDP project would be:
+So my preferred final architecture for UNDP project would be:
 
 Architecture
 
@@ -4608,7 +4608,7 @@ git status
 Output:
 
 ```text
-Your branch is ahead of 'origin/main' by 1 commit
+ branch is ahead of 'origin/main' by 1 commit
 ```
 
 This confirms the CI/CD configuration is committed locally.
@@ -4936,7 +4936,7 @@ Before running, make sure BigQuery API is enabled:
 ```
 gcloud services enable bigquery.googleapis.com
 ```
-Also make sure your project is set:
+Also make sure  project is set:
 ```
 gcloud config set project undp-project-documents
 ```
@@ -5034,7 +5034,7 @@ def retrieve(question: str, top_k: int = TOP_K) -> list[dict]:
     return results
 ```
 
-create a Vector Index on your BigQuery table. Without an index, VECTOR_SEARCH performs a brute-force scan of all 8,786 vectors. At your current size it's still workable, but as your dataset grows, the index becomes much more important for latency.
+create a Vector Index on  BigQuery table. Without an index, VECTOR_SEARCH performs a brute-force scan of all 8,786 vectors. At current size it's still workable, but as  dataset grows, the index becomes much more important for latency.
 
 Run this SQL in BigQuery SQL editor:
 
@@ -5067,11 +5067,11 @@ Wait until:
 index_status = ACTIVE
 coverage_percentage = 100
 
-Important: after creating the index, your existing VECTOR_SEARCH query can stay the same. BigQuery will use the index automatically when possible.
+Important: after creating the index, existing VECTOR_SEARCH query can stay the same. BigQuery will use the index automatically when possible.
 
-One more thing to improve your retrieval
+One more thing to improve retrieval
 
-Once the index reaches 100%, update your VECTOR_SEARCH query to explicitly use approximate nearest neighbor (ANN) search. For example:
+Once the index reaches 100%, update  VECTOR_SEARCH query to explicitly use approximate nearest neighbor (ANN) search. For example:
 
 VECTOR_SEARCH(
     TABLE `undp-project-documents.undp_rag.rag_chunks`,
