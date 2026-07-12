@@ -6,7 +6,7 @@ from src.chatbot.qa import ask
 
 
 st.set_page_config(
-    page_title="UNDP Project Document Chatbot",
+    page_title="Hybrid RAG Chatbot",
     page_icon="📄",
     layout="wide",
 )
@@ -19,12 +19,12 @@ st.info("""
 
 This application was developed as the **final project** for the **LLM Zoomcamp** offered by **DataTalks.Club**.
 
-The project showcases an end-to-end production-style RAG pipeline built on Google Cloud Platform for querying UNDP project documents using hybrid retrieval and Gemini.
+The project demonstrates the design, implementation, deployment, and evaluation of an end-to-end production-style Hybrid Retrieval-Augmented Generation (RAG) system built on Google Cloud Platform for querying UNDP project documents using Gemini.
 """)
-st.title("📄 UNDP Project Document Chatbot")
+st.title("📄 Hybrid RAG Chatbot")
 
 st.write(
-    "Ask questions about UNDP project documents ingested into the Retrieval-Augmented Generation (RAG) pipeline."
+    "Ask questions about UNDP project documents using a production-ready Hybrid Retrieval-Augmented Generation (RAG) system."
 )
 
 question = st.text_area(
@@ -59,8 +59,7 @@ if st.button("Ask"):
                 keyword_rank = source.get("keyword_rank") or "N/A"
 
                 with st.expander(
-                    f"Source {i} | {pdf_name} "
-                    f"| Cosine similarity score: {vector_score:.3f} "
+                    f"Source {i} "
                 ):
                     col1, col2 = st.columns(2)
 
@@ -116,7 +115,22 @@ if st.button("Ask"):
                         st.write(source.get("text", ""))
 
 st.markdown("---")
+st.subheader("Was this response helpful?")
 
+helpful = st.radio(
+    "",
+    ["👍 Yes", "👎 No"],
+    horizontal=True,
+)
+
+feedback = st.text_area(
+    "Anything you'd like to share?",
+    placeholder="Optional feedback...",
+)
+
+if st.button("Submit"):
+    st.success("Thank you for your feedback!")
+    
 st.subheader("Example Questions")
 
 st.markdown("""
@@ -163,9 +177,45 @@ This project implements a fully automated **Retrieval-Augmented Generation (RAG)
 
 - **CI/CD:** **GitHub**, **Cloud Build**, **Docker**, and **Artifact Registry** automate container image creation, deployment, and application updates.
 """)
+st.subheader("Evaluation Methodology")
 
+st.markdown("""
+The Hybrid RAG Chatbot was evaluated at two levels: **retrieval quality** and
+**generated-answer quality**.
+
+**Retrieval Evaluation**
+
+A ground-truth dataset was automatically generated from processed UNDP document
+chunks using Gemini. The retrieval pipeline evaluated semantic vector search,
+keyword search, domain-specific query expansion, and **Hybrid Retrieval**
+combined using **Reciprocal Rank Fusion (RRF)**.
+
+Retrieval performance was measured using:
+
+- **Hit Rate@K**
+- **Mean Reciprocal Rank (MRR)**
+- **Precision@K**
+- **Recall@K**
+- **Evidence-Group Recall**
+
+**Generated-Answer Evaluation**
+
+For each evaluation question, the system retrieved supporting document chunks,
+generated an answer with Gemini, and compared it with the reference answer
+using an **LLM-as-a-Judge** approach.
+
+Generated answers were evaluated for:
+
+- **Correctness**
+- **Groundedness**
+- **Completeness**
+- **Answer Relevance**
+- **Hallucination Detection**
+""")
 st.subheader("Data Source")
 
 st.markdown("""
 Open UNDP API Documentation: https://api.open.undp.org/api_documentation/api#!/default/individual_project_data
 """)
+st.markdown("---")
+

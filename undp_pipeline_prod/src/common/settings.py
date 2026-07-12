@@ -90,6 +90,18 @@ class Settings:
         "GENERATION_MODEL",
         "gemini-2.5-flash",
     )
+    
+    eval_processed_prefix: str = os.getenv(
+    "EVAL_PROCESSED_PREFIX",
+    "evaluation/processed",
+    )
 
-
+    eval_embeddings_prefix: str = os.getenv(
+        "EVAL_EMBEDDINGS_PREFIX",
+        "evaluation/embeddings",
+    )
+    eval_ground_truth_prefix: str = os.getenv(
+    "EVAL_GROUND_TRUTH_PREFIX",
+    "evaluation/ground_truth",
+   )
 settings = Settings()

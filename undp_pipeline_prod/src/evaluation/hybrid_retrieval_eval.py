@@ -5,9 +5,9 @@ from google.genai.types import EmbedContentConfig
 from src.common.settings import settings
 
 
-TOP_K = 5
+TOP_K = 10
 DATASET_ID = "undp_rag"
-TABLE_ID = "rag_chunks"
+TABLE_ID = "rag_chunks_eval"
 RRF_K = 60
 
 
@@ -211,7 +211,8 @@ def retrieve(question: str, top_k: int = TOP_K) -> list[dict]:
         vector_rrf_score + keyword_rrf_score AS rrf_score,
         IF(distance IS NULL, 0, 1 - distance) AS vector_score
     FROM combined
-    ORDER BY rrf_score DESC
+    ORDER BY
+        rrf_score DESC
     LIMIT @candidate_k
     """
 
@@ -227,24 +228,9 @@ def retrieve(question: str, top_k: int = TOP_K) -> list[dict]:
     rows = bq_client.query(sql, job_config=job_config).result()
 
     results = []
-    seen = set()
 
     for row in rows:
         record = dict(row)
-
-        text_key = normalize_text(record.get("text", ""))[:500]
-
-        dedup_key = (
-            record.get("project_id"),
-            record.get("page_number"),
-            text_key,
-        )
-
-        if dedup_key in seen:
-            continue
-
-        seen.add(dedup_key)
-
         record["score"] = float(record.get("rrf_score", 0))
         results.append(record)
 
@@ -260,13 +246,14 @@ if __name__ == "__main__":
     print("Running RRF hybrid retrieval test...")
     print(f"Search terms: {extract_search_terms(test_question)}")
 
-    results = retrieve(test_question, top_k=5)
+    results = retrieve(test_question, top_k=10)
 
     print(f"Results found: {len(results)}")
 
     for index, result in enumerate(results, start=1):
         print()
         print(f"Result {index}")
+        print(f"Chunk ID: {result.get('id')}")
         print(f"RRF Score: {result.get('score', 0):.6f}")
         print(f"Vector Score: {result.get('vector_score', 0):.4f}")
         print(f"Vector Rank: {result.get('vector_rank')}")
