@@ -48,6 +48,37 @@ This hybrid retrieval approach improves robustness by combining semantic similar
 
 ## Pipeline Overview
 
+# UNDP RAG Chatbot — Script Overview
+
+## Main Pipeline
+
+| Script / Component               | Description                                                                                                                                                                                              |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `run_ingest.py`                  | Connects to the UNDP API, identifies project documents, downloads the PDFs, and stores them in Google Cloud Storage with metadata such as country, year, and project ID.                                 |
+| **Text Extraction / OCR**        | Extracts text directly from PDFs when possible. If text extraction quality is poor, the pipeline falls back to Google Document AI OCR.                                                                   |
+| `run_chunk.py`                   | Splits extracted document text into smaller overlapping chunks so the content can be efficiently searched and passed to the LLM.                                                                         |
+| `run_embed.py`                   | Uses Gemini Embeddings to convert each text chunk into a numerical vector representing its semantic meaning.                                                                                             |
+| `load_embeddings_to_bigquery.py` | Loads document chunks, embeddings, and metadata into BigQuery to create the searchable knowledge base.                                                                                                   |
+| **Retrieval Module**             | Performs vector search and keyword search in BigQuery and combines the rankings using Reciprocal Rank Fusion (RRF) to identify the most relevant document chunks.                                        |
+| `qa.py`                          | Manages the RAG question-answering flow: receives the user question, retrieves relevant chunks, builds the prompt with supporting context, calls Gemini, and returns a grounded answer with its sources. |
+| `app.py`                         | Provides the Streamlit user interface where users can ask questions and view generated answers, source documents, and retrieval information.                                                             |
+
+## Evaluation Pipeline
+
+| Script                                | Description                                                                                                                       |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `run_chunk_eval.py`                   | Prepares document chunks specifically for the evaluation dataset.                                                                 |
+| `run_embed_eval.py`                   | Generates embeddings for the evaluation data so retrieval performance can be measured.                                            |
+| `load_embeddings_eval_to_bigquery.py` | Loads evaluation chunks and embeddings into BigQuery for retrieval testing.                                                       |
+| `build_ground_truth.py`               | Creates the reference dataset containing evaluation questions and their expected relevant documents or answers.                   |
+| `evaluate_retrieval.py`               | Evaluates vector retrieval using metrics such as Hit Rate, MRR, Precision@K, and Recall@K.                                        |
+| `hybrid_retrieval_eval.py`            | Evaluates hybrid retrieval using vector search, keyword search, and RRF, and compares its performance with vector-only retrieval. |
+| `evaluate_generation.py`              | Evaluates generated answers using correctness, groundedness, completeness, answer relevance, and hallucination metrics.           |
+| `evaluate_generation_prompts.py`      | Compares different prompting strategies to determine which produces the most accurate, relevant, and grounded answers.            |
+
+
+
+
 ```mermaid
 flowchart TD
     A[Ingest Documents] --> B[Chunk PDFs]
