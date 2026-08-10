@@ -1,15 +1,19 @@
 # Project Solution
 
 ## 1. Problem Description 
+UNDP publishes project documents in PDF format on the Open UNDP website:
 
-The United Nations Development Programme (UNDP) publishes thousands of
-project documents in PDF format covering development initiatives across
-multiple countries and years. These documents contain valuable
+https://open.undp.org/
+
+These documents contain valuable
 information about project objectives, budgets, beneficiaries,
 implementation strategies, outcomes, and Sustainable Development Goals
 (SDGs). However, locating specific information often requires manually
 searching through hundreds of pages across numerous PDF files, making
 the process slow, inefficient, and difficult to scale.
+
+
+Finding specific information across hundreds of pages of project documents is difficult and time-consuming.
 
 This project addresses this challenge by developing a
 Retrieval-Augmented Generation (RAG) chatbot on Google Cloud Platform

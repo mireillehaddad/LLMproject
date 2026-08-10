@@ -17,6 +17,29 @@ st.subheader("About the Author")
 st.info("""
 **Developed by Mireille El Haddad**
 
+UNDP publishes project documents in PDF format on the Open UNDP website:
+
+https://open.undp.org/
+
+These documents contain valuable
+information about project objectives, budgets, beneficiaries,
+implementation strategies, outcomes, and Sustainable Development Goals
+(SDGs). However, locating specific information often requires manually
+searching through hundreds of pages across numerous PDF files, making
+the process slow, inefficient, and difficult to scale.
+
+
+Finding specific information across hundreds of pages of project documents is difficult and time-consuming.
+
+This project addresses this challenge by developing a
+Retrieval-Augmented Generation (RAG) chatbot on Google Cloud Platform
+that enables users to ask natural language questions about UNDP
+projects. Instead of manually browsing documents, users can retrieve
+accurate, context-grounded answers with citations to the original
+project documents. The system combines automated document ingestion,
+semantic search, keyword search, document re-ranking, and large language
+models to provide reliable and explainable responses.        
+
 This application was developed as the **final project** for the **LLM Zoomcamp** offered by **DataTalks.Club**.
 
 The project demonstrates the design, implementation, deployment, and evaluation of an end-to-end production-style Hybrid Retrieval-Augmented Generation (RAG) system built on Google Cloud Platform for querying UNDP project documents using Gemini.
